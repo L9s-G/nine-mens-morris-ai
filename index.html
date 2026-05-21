@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>九连棋 - Nine Men's Morris</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    min-height: 100vh;
+    overflow: hidden;
+}
+
+.container {
+    display: grid;
+    width: 100vw;
+    height: 100vh;
+    gap: 16px;
+    padding: 16px;
+}
+
+/* Portrait: board on top, panel below */
+@media (orientation: portrait) {
+    .container {
+        grid-template-rows: 1fr auto;
+        grid-template-columns: 1fr;
+    }
+    .board-area { grid-row: 1; grid-column: 1; }
+    .panel { grid-row: 2; grid-column: 1; }
+}
+
+/* Landscape: board on left, panel on right */
+@media (orientation: landscape) {
+    .container {
+        grid-template-columns: 1fr 320px;
+        grid-template-rows: 1fr;
+    }
+    .board-area { grid-row: 1; grid-column: 1; }
+    .panel { grid-row: 1; grid-column: 2; }
+}
+
+/* Board */
+.board-area {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#board-svg {
+    max-width: 100%;
+    max-height: 100%;
+    filter: drop-shadow(0 4px 20px rgba(0,0,0,0.5));
+}
+
+.board-line {
+    stroke: #4a4a6a;
+    stroke-width: 3;
+    stroke-linecap: round;
+}
+
+.position-circle {
+    fill: transparent;
+    stroke: #6a6a8a;
+    stroke-width: 2;
+    cursor: pointer;
+    transition: fill 0.2s, stroke 0.2s;
+}
+
+.position-circle:hover {
+    fill: rgba(255,255,255,0.1);
+    stroke: #9a9aba;
+}
+
+.position-circle.highlight {
+    fill: rgba(100,200,100,0.3);
+    stroke: #6f6;
+    stroke-width: 3;
+}
+
+.position-circle.remove-highlight {
+    fill: rgba(255,80,80,0.3);
+    stroke: #f66;
+    stroke-width: 3;
+}
+
+.position-circle.selected {
+    fill: rgba(100,150,255,0.3);
+    stroke: #69f;
+    stroke-width: 3;
+}
+
+.piece {
+    pointer-events: none;
+    transition: cx 0.3s, cy 0.3s, opacity 0.3s;
+}
+
+.piece-human { fill: #f0f0f0; stroke: #ccc; stroke-width: 2; }
+.piece-ai { fill: #333; stroke: #555; stroke-width: 2; }
+
+/* Panel */
+.panel {
+    background: #16213e;
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+    max-height: 100%;
+}
+
+.panel h1 {
+    font-size: 1.4em;
+    text-align: center;
+    color: #7ec8e3;
+}
+
+.difficulty-selector {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+}
+
+.difficulty-btn {
+    padding: 8px 16px;
+    border: 2px solid #4a4a6a;
+    background: transparent;
+    color: #e0e0e0;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.2s;
+}
+
+.difficulty-btn:hover { border-color: #7ec8e3; }
+.difficulty-btn.active {
+    background: #7ec8e3;
+    color: #1a1a2e;
+    border-color: #7ec8e3;
+}
+
+/* Player info */
+.player-info {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.player-card {
+    background: #1a1a3e;
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+    border: 2px solid transparent;
+    transition: border-color 0.3s;
+}
+
+.player-card.active { border-color: #7ec8e3; }
+
+.player-card .name { font-size: 0.9em; color: #aaa; margin-bottom: 4px; }
+.player-card .stats { font-size: 0.8em; color: #888; }
+.player-card .stats span { color: #e0e0e0; font-weight: bold; }
+
+/* Turn indicator */
+.turn-indicator {
+    text-align: center;
+    padding: 8px;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 1.1em;
+    background: #1a1a3e;
+}
+
+.turn-indicator.thinking {
+    background: #2a1a3e;
+    color: #c8a0ff;
+}
+
+/* Narration */
+.narration {
+    background: #1a1a3e;
+    border-radius: 8px;
+    padding: 12px;
+    min-height: 60px;
+    font-style: italic;
+    color: #b0b0d0;
+    line-height: 1.4;
+}
+
+.narration .emotion { color: #7ec8e3; }
+
+/* Stats */
+.stats-box {
+    font-size: 0.75em;
+    color: #666;
+    text-align: center;
+}
+
+/* Controls */
+.controls {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+}
+
+.ctrl-btn {
+    padding: 8px 20px;
+    border: 2px solid #4a4a6a;
+    background: transparent;
+    color: #e0e0e0;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.2s;
+}
+
+.ctrl-btn:hover { border-color: #7ec8e3; color: #7ec8e3; }
+
+/* Game over overlay */
+.game-over-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+
+.game-over-overlay.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.game-over-box {
+    background: #16213e;
+    border-radius: 16px;
+    padding: 32px 48px;
+    text-align: center;
+    border: 2px solid #7ec8e3;
+}
+
+.game-over-box h2 { font-size: 1.8em; margin-bottom: 16px; color: #7ec8e3; }
+.game-over-box p { margin-bottom: 20px; font-size: 1.1em; }
+
+/* Mill animation */
+@keyframes mill-flash {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+.mill-flash { animation: mill-flash 0.5s ease-in-out 3; }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <div class="board-area">
+        <svg id="board-svg" viewBox="0 0 600 600" preserveAspectRatio="xMidYMid meet">
+            <!-- Board lines -->
+            <!-- Outer square: 0-1-2-14-12-11-10-9 -->
+            <line class="board-line" x1="50" y1="50" x2="300" y2="50"/>
+            <line class="board-line" x1="300" y1="50" x2="550" y2="50"/>
+            <line class="board-line" x1="550" y1="50" x2="550" y2="300"/>
+            <line class="board-line" x1="550" y1="300" x2="550" y2="550"/>
+            <line class="board-line" x1="550" y1="550" x2="300" y2="550"/>
+            <line class="board-line" x1="300" y1="550" x2="50" y2="550"/>
+            <line class="board-line" x1="50" y1="550" x2="50" y2="300"/>
+            <line class="board-line" x1="50" y1="300" x2="50" y2="50"/>
+
+            <!-- Middle square: 3-4-5-13-20-19-18-17 -->
+            <line class="board-line" x1="130" y1="130" x2="300" y2="130"/>
+            <line class="board-line" x1="300" y1="130" x2="470" y2="130"/>
+            <line class="board-line" x1="470" y1="130" x2="470" y2="300"/>
+            <line class="board-line" x1="470" y1="300" x2="470" y2="470"/>
+            <line class="board-line" x1="470" y1="470" x2="300" y2="470"/>
+            <line class="board-line" x1="300" y1="470" x2="130" y2="470"/>
+            <line class="board-line" x1="130" y1="470" x2="130" y2="300"/>
+            <line class="board-line" x1="130" y1="300" x2="130" y2="130"/>
+
+            <!-- Inner square: 6-7-8-15-22-21-20-23 -->
+            <line class="board-line" x1="210" y1="210" x2="300" y2="210"/>
+            <line class="board-line" x1="300" y1="210" x2="390" y2="210"/>
+            <line class="board-line" x1="390" y1="210" x2="390" y2="300"/>
+            <line class="board-line" x1="390" y1="300" x2="390" y2="390"/>
+            <line class="board-line" x1="390" y1="390" x2="300" y2="390"/>
+            <line class="board-line" x1="300" y1="390" x2="210" y2="390"/>
+            <line class="board-line" x1="210" y1="390" x2="210" y2="300"/>
+            <line class="board-line" x1="210" y1="300" x2="210" y2="210"/>
+
+            <!-- Cross connections -->
+            <line class="board-line" x1="300" y1="50" x2="300" y2="130"/>   <!-- 1-4 -->
+            <line class="board-line" x1="300" y1="210" x2="300" y2="130"/>  <!-- 7-4 -->
+            <line class="board-line" x1="300" y1="210" x2="300" y2="300"/>  <!-- 7-16 -->
+            <line class="board-line" x1="300" y1="390" x2="300" y2="300"/>  <!-- 21-16 -->
+            <line class="board-line" x1="300" y1="390" x2="300" y2="470"/>  <!-- 21-11 -->
+            <line class="board-line" x1="300" y1="550" x2="300" y2="470"/>  <!-- 11-11 -->
+
+            <line class="board-line" x1="50" y1="300" x2="130" y2="300"/>   <!-- 9-10 -->
+            <line class="board-line" x1="210" y1="300" x2="130" y2="300"/>  <!-- 23-10 -->
+            <line class="board-line" x1="210" y1="300" x2="300" y2="300"/>  <!-- 23-16 -->
+            <line class="board-line" x1="390" y1="300" x2="300" y2="300"/>  <!-- 19-16 -->
+            <line class="board-line" x1="390" y1="300" x2="470" y2="300"/>  <!-- 19-13 -->
+            <line class="board-line" x1="550" y1="300" x2="470" y2="300"/>  <!-- 13-13 -->
+
+            <!-- Position circles (clickable) -->
+            <!-- Outer: 0,1,2,9,10,11,12,14 -->
+            <circle class="position-circle" cx="50" cy="50" r="20" data-pos="0"/>
+            <circle class="position-circle" cx="300" cy="50" r="20" data-pos="1"/>
+            <circle class="position-circle" cx="550" cy="50" r="20" data-pos="2"/>
+            <circle class="position-circle" cx="50" cy="300" r="20" data-pos="9"/>
+            <circle class="position-circle" cx="50" cy="550" r="20" data-pos="10"/>
+            <circle class="position-circle" cx="300" cy="550" r="20" data-pos="11"/>
+            <circle class="position-circle" cx="550" cy="550" r="20" data-pos="12"/>
+            <circle class="position-circle" cx="550" cy="300" r="20" data-pos="14"/>
+
+            <!-- Middle: 3,4,5,13,17,18,19,20 -->
+            <circle class="position-circle" cx="130" cy="130" r="20" data-pos="3"/>
+            <circle class="position-circle" cx="300" cy="130" r="20" data-pos="4"/>
+            <circle class="position-circle" cx="470" cy="130" r="20" data-pos="5"/>
+            <circle class="position-circle" cx="470" cy="300" r="20" data-pos="13"/>
+            <circle class="position-circle" cx="300" cy="470" r="20" data-pos="17"/>
+            <circle class="position-circle" cx="130" cy="470" r="20" data-pos="18"/>
+            <circle class="position-circle" cx="130" cy="300" r="20" data-pos="19"/>
+            <circle class="position-circle" cx="390" cy="390" r="20" data-pos="20"/>
+
+            <!-- Inner: 6,7,8,15,16,21,22,23 -->
+            <circle class="position-circle" cx="210" cy="210" r="20" data-pos="6"/>
+            <circle class="position-circle" cx="300" cy="210" r="20" data-pos="7"/>
+            <circle class="position-circle" cx="390" cy="210" r="20" data-pos="8"/>
+            <circle class="position-circle" cx="390" cy="300" r="20" data-pos="15"/>
+            <circle class="position-circle" cx="300" cy="300" r="20" data-pos="16"/>
+            <circle class="position-circle" cx="300" cy="390" r="20" data-pos="21"/>
+            <circle class="position-circle" cx="210" cy="390" r="20" data-pos="22"/>
+            <circle class="position-circle" cx="210" cy="300" r="20" data-pos="23"/>
+
+            <!-- Pieces layer (on top) -->
+            <g id="pieces-layer"></g>
+        </svg>
+    </div>
+
+    <div class="panel">
+        <h1>九连棋</h1>
+
+        <div class="difficulty-selector">
+            <button class="difficulty-btn active" data-mode="Eco">节能</button>
+            <button class="difficulty-btn" data-mode="Normal">平衡</button>
+            <button class="difficulty-btn" data-mode="Master">大师</button>
+        </div>
+
+        <div class="player-info">
+            <div class="player-card active" id="human-card">
+                <div class="name">白方 (你)</div>
+                <div class="stats">手:<span id="h-hand">9</span> 盘:<span id="h-board">0</span> 失:<span id="h-lost">0</span></div>
+            </div>
+            <div class="player-card" id="ai-card">
+                <div class="name">黑方 (AI)</div>
+                <div class="stats">手:<span id="a-hand">9</span> 盘:<span id="a-board">0</span> 失:<span id="a-lost">0</span></div>
+            </div>
+        </div>
+
+        <div class="turn-indicator" id="turn-indicator">白方落子</div>
+
+        <div class="narration" id="narration">准备开始...</div>
+
+        <div class="stats-box" id="stats-box"></div>
+
+        <div class="controls">
+            <button class="ctrl-btn" id="btn-undo">悔棋</button>
+            <button class="ctrl-btn" id="btn-new">新局</button>
+        </div>
+    </div>
+</div>
+
+<div class="game-over-overlay" id="game-over">
+    <div class="game-over-box">
+        <h2 id="game-over-title">游戏结束</h2>
+        <p id="game-over-msg"></p>
+        <button class="ctrl-btn" id="btn-restart">再来一局</button>
+    </div>
+</div>
+
+<script src="engine.js"></script>
+<script src="strategy.js"></script>
+<script src="ai.js"></script>
+<script src="narrator.js"></script>
+<script>
+// ==================== Game Controller ====================
+
+const Game = (() => {
+    const E = Engine;
+    const svg = document.getElementById('board-svg');
+    const piecesLayer = document.getElementById('pieces-layer');
+    const posCircles = document.querySelectorAll('.position-circle');
+
+    // Position coordinates for rendering pieces
+    const POS_COORDS = [
+        [50,50],[300,50],[550,50],[130,130],[300,130],[470,130],[210,210],[300,210],
+        [390,210],[50,300],[50,550],[300,550],[550,550],[470,300],[550,300],[390,300],
+        [300,300],[300,470],[130,470],[130,300],[390,390],[300,390],[210,390],[210,300]
+    ];
+
+    // Game state
+    let selectedPos = -1;       // selected piece position (for move/fly)
+    let legalMoves = [];        // current legal moves
+    let isAIThinking = false;
+    let difficulty = 'Eco';
+
+    // ==================== Rendering ====================
+
+    function renderBoard() {
+        const state = E.getState();
+
+        // Clear pieces
+        piecesLayer.innerHTML = '';
+
+        // Draw pieces
+        for (let i = 0; i < 24; i++) {
+            if (state.board[i] !== null) {
+                const [cx, cy] = POS_COORDS[i];
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', cx);
+                circle.setAttribute('cy', cy);
+                circle.setAttribute('r', 16);
+                circle.classList.add('piece');
+                circle.classList.add(state.board[i] === E.TYPE_HUMAN ? 'piece-human' : 'piece-ai');
+                circle.dataset.pos = i;
+                piecesLayer.appendChild(circle);
+            }
+        }
+
+        // Update stats
+        updateStats(state);
+        updateTurnIndicator(state);
+    }
+
+    function updateStats(state) {
+        document.getElementById('h-hand').textContent = state.playerHuman.piecesOnHand;
+        document.getElementById('h-board').textContent = state.playerHuman.piecesOnBoard;
+        document.getElementById('h-lost').textContent = state.playerHuman.piecesLost;
+        document.getElementById('a-hand').textContent = state.playerAI.piecesOnHand;
+        document.getElementById('a-board').textContent = state.playerAI.piecesOnBoard;
+        document.getElementById('a-lost').textContent = state.playerAI.piecesLost;
+
+        // Active card highlight
+        document.getElementById('human-card').classList.toggle('active', state.currentPlayer === E.TYPE_HUMAN);
+        document.getElementById('ai-card').classList.toggle('active', state.currentPlayer === E.TYPE_AI);
+    }
+
+    function updateTurnIndicator(state) {
+        const el = document.getElementById('turn-indicator');
+        if (state.gameOver) {
+            el.textContent = state.winner === E.TYPE_HUMAN ? '白方胜!' : '黑方胜!';
+            el.classList.remove('thinking');
+        } else if (isAIThinking) {
+            el.textContent = 'AI 思考中...';
+            el.classList.add('thinking');
+        } else if (state.millMove) {
+            el.textContent = '形成磨坊! 选择吃子';
+            el.classList.remove('thinking');
+        } else if (state.currentPlayer === E.TYPE_HUMAN) {
+            const phase = getPhase(state, E.TYPE_HUMAN);
+            el.textContent = phase === 'PLACEMENT' ? '白方落子' : phase === 'FLYING' ? '白方飞行' : '白方走子';
+            el.classList.remove('thinking');
+        } else {
+            el.textContent = 'AI 回合';
+            el.classList.remove('thinking');
+        }
+    }
+
+    function getPhase(state, player) {
+        const p = player === E.TYPE_HUMAN ? state.playerHuman : state.playerAI;
+        if (p.piecesOnHand > 0) return 'PLACEMENT';
+        if (p.piecesOnBoard === 3) return 'FLYING';
+        return 'MOVING';
+    }
+
+    function clearHighlights() {
+        posCircles.forEach(c => {
+            c.classList.remove('highlight', 'remove-highlight', 'selected');
+        });
+        selectedPos = -1;
+    }
+
+    function highlightPositions(positions, className) {
+        positions.forEach(pos => {
+            posCircles[pos].classList.add(className);
+        });
+    }
+
+    // ==================== Human Move Handling ====================
+
+    function onPositionClick(pos) {
+        if (isAIThinking) return;
+        if (E.getState().gameOver) return;
+        if (E.getState().currentPlayer !== E.TYPE_HUMAN) return;
+
+        const state = E.getState();
+        legalMoves = E.generateLegalMoves(E.TYPE_HUMAN);
+
+        if (state.millMove) {
+            // Must remove an opponent piece
+            const removeMoves = legalMoves.filter(m => m.type === 'remove' && m.remove === pos);
+            if (removeMoves.length > 0) {
+                executeHumanMove(removeMoves[0]);
+            }
+            return;
+        }
+
+        const phase = getPhase(state, E.TYPE_HUMAN);
+
+        if (phase === 'PLACEMENT') {
+            // Place piece
+            const placeMoves = legalMoves.filter(m => m.type === 'place' && m.to === pos);
+            if (placeMoves.length > 0) {
+                executeHumanMove(placeMoves[0]);
+            }
+        } else {
+            // Move or Fly
+            if (selectedPos === -1) {
+                // Select piece to move
+                const myPiece = state.board[pos] === E.TYPE_HUMAN;
+                if (myPiece) {
+                    const hasMove = legalMoves.some(m => m.from === pos);
+                    if (hasMove) {
+                        selectedPos = pos;
+                        clearHighlights();
+                        posCircles[pos].classList.add('selected');
+                        // Highlight valid destinations
+                        const dests = legalMoves.filter(m => m.from === pos).map(m => m.to);
+                        highlightPositions(dests, 'highlight');
+                    }
+                }
+            } else {
+                // Move selected piece to destination
+                const move = legalMoves.find(m => m.from === selectedPos && m.to === pos);
+                if (move) {
+                    executeHumanMove(move);
+                } else {
+                    // Clicked elsewhere - deselect or select new piece
+                    if (state.board[pos] === E.TYPE_HUMAN && legalMoves.some(m => m.from === pos)) {
+                        selectedPos = pos;
+                        clearHighlights();
+                        posCircles[pos].classList.add('selected');
+                        const dests = legalMoves.filter(m => m.from === pos).map(m => m.to);
+                        highlightPositions(dests, 'highlight');
+                    } else {
+                        clearHighlights();
+                    }
+                }
+            }
+        }
+    }
+
+    function executeHumanMove(move) {
+        clearHighlights();
+        const result = E.makeMove(move);
+        renderBoard();
+
+        if (result.formedMill) {
+            // Need to remove a piece
+            legalMoves = E.generateLegalMoves(E.TYPE_HUMAN);
+            const removePositions = legalMoves.map(m => m.remove);
+            highlightPositions(removePositions, 'remove-highlight');
+            showNarration('形成磨坊! 选择对方棋子吃掉', '');
+            return;
+        }
+
+        // Check game over
+        if (E.getState().gameOver) {
+            showGameOver(E.getState().winner);
+            return;
+        }
+
+        // AI turn
+        setTimeout(doAITurn, 100);
+    }
+
+    // ==================== AI Turn ====================
+
+    function doAITurn() {
+        if (E.getState().gameOver) return;
+
+        isAIThinking = true;
+        renderBoard();
+
+        setTimeout(() => {
+            const result = AI.selectBestMoveForPlayer(E.TYPE_AI);
+            if (!result || !result.move) {
+                isAIThinking = false;
+                renderBoard();
+                showGameOver(E.TYPE_HUMAN);
+                return;
+            }
+
+            // Apply AI move
+            const moveResult = E.makeMove(result.move);
+            isAIThinking = false;
+
+            // Show narration
+            const bestEntry = result.allScores[0];
+            const narration = Narrator.getOfflineLine(
+                bestEntry || { tags: [] },
+                result.mode,
+                result.report.context.materialDiff
+            );
+            showNarration(narration, result.stats);
+
+            renderBoard();
+
+            // If AI formed a mill, it needs to remove a piece
+            if (moveResult.formedMill) {
+                setTimeout(() => {
+                    doAIRemove(result);
+                }, 300);
+                return;
+            }
+
+            if (E.getState().gameOver) {
+                showGameOver(E.getState().winner);
+                return;
+            }
+
+            // Update legal moves for human
+            legalMoves = E.generateLegalMoves(E.TYPE_HUMAN);
+            highlightIfNeeded();
+        }, 50);
+    }
+
+    function doAIRemove(prevResult) {
+        // AI already made its move, now it needs to remove
+        const removeMoves = E.generateLegalMoves(E.TYPE_AI);
+        if (removeMoves.length > 0) {
+            // Use the same AI result to pick the best remove
+            // Actually, the AI already selected the full move including remove
+            // But since selectBestMoveForPlayer returns the primary move,
+            // we need to handle the remove separately
+            // Let's just pick the first legal remove for now
+            // Or better: call AI again for the remove decision
+            const removeResult = AI.selectBestMoveForPlayer(E.TYPE_AI);
+            if (removeResult && removeResult.move) {
+                E.makeMove(removeResult.move);
+            } else if (removeMoves.length > 0) {
+                E.makeMove(removeMoves[0]);
+            }
+        }
+
+        renderBoard();
+
+        if (E.getState().gameOver) {
+            showGameOver(E.getState().winner);
+            return;
+        }
+
+        legalMoves = E.generateLegalMoves(E.TYPE_HUMAN);
+        highlightIfNeeded();
+    }
+
+    function highlightIfNeeded() {
+        const state = E.getState();
+        if (state.millMove && state.currentPlayer === E.TYPE_HUMAN) {
+            const removePositions = legalMoves.map(m => m.remove);
+            highlightPositions(removePositions, 'remove-highlight');
+        }
+    }
+
+    // ==================== Narration ====================
+
+    function showNarration(text, stats) {
+        document.getElementById('narration').textContent = text;
+        if (stats) {
+            document.getElementById('stats-box').textContent =
+                `深度:${stats.depth} 节点:${stats.nodeCount} 用时:${stats.elapsed}ms ${stats.config}`;
+        }
+    }
+
+    // ==================== Game Over ====================
+
+    function showGameOver(winner) {
+        const overlay = document.getElementById('game-over');
+        const title = document.getElementById('game-over-title');
+        const msg = document.getElementById('game-over-msg');
+
+        if (winner === E.TYPE_HUMAN) {
+            title.textContent = '你赢了!';
+            msg.textContent = '白方获胜';
+        } else {
+            title.textContent = 'AI 获胜';
+            msg.textContent = '黑方获胜';
+        }
+
+        overlay.classList.add('show');
+    }
+
+    // ==================== Controls ====================
+
+    function newGame() {
+        document.getElementById('game-over').classList.remove('show');
+        E.init({ firstPlayer: E.TYPE_HUMAN });
+        AI.setPerformanceMode(difficulty);
+        selectedPos = -1;
+        isAIThinking = false;
+        legalMoves = E.generateLegalMoves(E.TYPE_HUMAN);
+        renderBoard();
+        showNarration('新局开始，白方先行', '');
+        document.getElementById('stats-box').textContent = '';
+    }
+
+    function undoMove() {
+        if (isAIThinking) return;
+        // Undo AI move + Human move (2 moves)
+        E.undoMove();
+        E.undoMove();
+        selectedPos = -1;
+        legalMoves = E.generateLegalMoves(E.TYPE_HUMAN);
+        renderBoard();
+        clearHighlights();
+        showNarration('已悔棋', '');
+    }
+
+    // ==================== Init ====================
+
+    function init() {
+        // Position circle click handlers
+        posCircles.forEach(circle => {
+            circle.addEventListener('click', () => {
+                onPositionClick(parseInt(circle.dataset.pos));
+            });
+        });
+
+        // Difficulty buttons
+        document.querySelectorAll('.difficulty-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.difficulty-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                difficulty = btn.dataset.mode;
+                AI.setPerformanceMode(difficulty);
+            });
+        });
+
+        // Control buttons
+        document.getElementById('btn-undo').addEventListener('click', undoMove);
+        document.getElementById('btn-new').addEventListener('click', newGame);
+        document.getElementById('btn-restart').addEventListener('click', newGame);
+
+        // Start game
+        newGame();
+    }
+
+    return { init };
+})();
+
+// Start when DOM is ready
+document.addEventListener('DOMContentLoaded', Game.init);
+</script>
+
+</body>
+</html>
