@@ -17,7 +17,7 @@ vm.runInContext(aiCode, sandbox);
 const Engine = sandbox.Engine;
 const AI = sandbox.AI;
 
-console.log('=== 九连棋 AI 性能测试 ===\n');
+console.log('=== Nine Men's Morris AI 性能测试 ===\n');
 
 // 测试不同深度
 const depths = [2, 3, 4, 5, 6];

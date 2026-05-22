@@ -1,4 +1,4 @@
-# 九连棋 AI 引擎
+# Nine Men's Morris AI 引擎
 
 纯原生 JavaScript 实现的九子棋（Nine Men's Morris）AI 引擎，包含极小化极大搜索、动态策略状态机、隐藏陷阱检测和人格化旁白系统。零依赖。
 

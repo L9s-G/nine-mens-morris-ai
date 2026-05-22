@@ -1,5 +1,5 @@
 /* ========================================================
-   九连棋 — 响应式布局
+   Nine Men's Morris — 响应式布局
    ======================================================== */
 
 /* ==================== Reset & Variables ==================== */
@@ -19,6 +19,13 @@
     --color-accent: #4fc3f7;
     --radius: 8px;
     --header-h: 48px;
+
+    /* 棋子阴影色板 */
+    --shadow-warm: rgba(40, 30, 20, 0.3);       /* 暖褐外阴影 */
+    --shadow-black: rgba(0, 0, 0, 0.45);        /* 黑子外阴影 */
+    --highlight-white: rgba(255, 255, 255, 0.9); /* 白子内高光 */
+    --highlight-soft: rgba(255, 255, 255, 0.35); /* 黑子内高光 */
+    --shadow-ambient: rgba(0, 0, 0, 0.15);      /* 环境暗面 */
 }
 
 * {
@@ -137,47 +144,41 @@ html, body {
 .piece-white {
     fill: var(--color-white);
     stroke: #e0e0e0;
-    /* 多重滤镜叠加：
-       1. 外部主阴影（向右下偏移 4px，模糊 5px，保持你好看的暖褐色影子）
-       2. 内部微高光（向左上偏移 -1px，模糊 1px，让棋子左上角边缘亮起来）
-       3. 内部微暗面（向右下偏移 1px，模糊 2px，让棋子右下角边缘收缩进去）
-    */
-    filter: 
-        drop-shadow(4px 4px 5px rgba(40, 30, 20, 0.3))
-        drop-shadow(-1px -1px 1px rgba(255, 255, 255, 0.9))
-        drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.15));
+    /* 外阴影 → 内高光(左上) → 暗面(右下) */
+    filter:
+        drop-shadow(4px 4px 5px var(--shadow-warm))
+        drop-shadow(-1px -1px 1px var(--highlight-white))
+        drop-shadow(1px 1px 2px var(--shadow-ambient));
 }
 
 .piece-black {
     fill: var(--color-black);
-    stroke: #222; /* 稍微加深边框，融入黑子 */
-    /* 黑子需要更强的高光对比，否则就是一团死黑：
-       1. 外部主阴影（黑色影子）
-       2. 内部左上角强高光（-1.5px 偏移，白色，透明度 0.35。这会让黑棋表面像抛光玉石一样反光）
-    */
-    filter: 
-        drop-shadow(4px 4px 5px rgba(0, 0, 0, 0.45))
-        drop-shadow(-1.5px -1.5px 1px rgba(255, 255, 255, 0.35));
+    stroke: #222;
+    /* 外阴影 → 内高光(左上，黑子需更强对比) */
+    filter:
+        drop-shadow(4px 4px 5px var(--shadow-black))
+        drop-shadow(-1.5px -1.5px 1px var(--highlight-soft));
 }
 
 .piece.selected {
     stroke: var(--color-accent);
     stroke-width: 3;
-    /* 保持白子的多重立体滤镜，最后加上你的发光特效 */
+    /* 外阴影 → 内高光 → 暗面 → 选中发光 */
     filter:
-        drop-shadow(4px 4px 5px rgba(40, 30, 20, 0.3))
-        drop-shadow(-1px -1px 1px rgba(255, 255, 255, 0.9))
-        drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.15))
+        drop-shadow(4px 4px 5px var(--shadow-warm))
+        drop-shadow(-1px -1px 1px var(--highlight-white))
+        drop-shadow(1px 1px 2px var(--shadow-ambient))
         drop-shadow(0 0 6px var(--color-accent));
 }
 
 .piece.capture {
     stroke: #ff8a80;
     stroke-width: 3;
+    /* 外阴影 → 内高光 → 暗面 → 危险发光 */
     filter:
-        drop-shadow(4px 4px 5px rgba(40, 30, 20, 0.3))
-        drop-shadow(-1px -1px 1px rgba(255, 255, 255, 0.9))
-        drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.15))
+        drop-shadow(4px 4px 5px var(--shadow-warm))
+        drop-shadow(-1px -1px 1px var(--highlight-white))
+        drop-shadow(1px 1px 2px var(--shadow-ambient))
         drop-shadow(0 0 8px #f44336);
 }
 
@@ -536,7 +537,13 @@ html, body {
     font-weight: 500;
 }
 
-.modal-content button {
+.modal-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.modal-buttons button {
     padding: 10px 24px;
     border: 1px solid var(--color-accent);
     border-radius: var(--radius);
@@ -547,8 +554,12 @@ html, body {
     transition: background 0.15s;
 }
 
-.modal-content button:hover {
+.modal-buttons button:hover {
     background: rgba(79, 195, 247, 0.15);
+}
+
+.modal-buttons .hidden {
+    display: none;
 }
 
 @keyframes modal-in {

@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>九连棋</title>
+    <title>Nine Men's Morris</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="app">
         <!-- 标题栏 -->
         <header id="header">
-            <h1>九连棋</h1>
+            <h1>Nine Men's Morris</h1>
             <div id="thinking-indicator" class="hidden">
                 <div class="spinner"></div>
                 <span>AI 思考中...</span>
@@ -29,60 +29,6 @@
                         <feFlood flood-color="#000" flood-opacity="0.6" result="color"/>
                         <feComposite operator="in" in="color" in2="inverse" result="shadow"/>
                         <feComposite operator="over" in="shadow" in2="SourceGraphic"/>
-                    </filter>
-
-                    <!-- 交互层凸起滤镜：针对浅色底优化 -->
-                    <filter id="hover-bump" x="-30%" y="-30%" width="160%" height="160%"
-                            color-interpolation-filters="sRGB">
-                        <!-- 外阴影：右下，浅色底上要轻 -->
-                        <feOffset dx="4" dy="4" in="SourceAlpha" result="outer"/>
-                        <feGaussianBlur stdDeviation="6" in="outer" result="outerBlur"/>
-                        <feFlood flood-color="#281e14" flood-opacity="0.18" result="outerColor"/>
-                        <feComposite in="outerColor" in2="outerBlur" operator="in" result="outerLayer"/>
-                        <!-- 内阴影：左上边缘变暗（曲面背光面） -->
-                        <feGaussianBlur stdDeviation="3" in="SourceAlpha" result="innerShadowBlur"/>
-                        <feFlood flood-color="#000" flood-opacity="0.25" result="innerShadowColor"/>
-                        <feComposite in="innerShadowColor" in2="innerShadowBlur" operator="in" result="innerShadowRaw"/>
-                        <feOffset dx="2" dy="2" in="innerShadowRaw" result="innerShadowLayer"/>
-                        <!-- 内高光：右下迎光面（浅色底上白色要更亮） -->
-                        <feGaussianBlur stdDeviation="3" in="SourceAlpha" result="innerHighBlur"/>
-                        <feFlood flood-color="#fff" flood-opacity="0.95" result="innerHighColor"/>
-                        <feComposite in="innerHighColor" in2="innerHighBlur" operator="in" result="innerHighRaw"/>
-                        <feOffset dx="-2" dy="-2" in="innerHighRaw" result="innerHighLayer"/>
-                        <!-- 合成 -->
-                        <feMerge>
-                            <feMergeNode in="outerLayer"/>
-                            <feMergeNode in="SourceGraphic"/>
-                            <feMergeNode in="innerShadowLayer"/>
-                            <feMergeNode in="innerHighLayer"/>
-                        </feMerge>
-                    </filter>
-
-                    <!-- 棋子立体感滤镜：外阴影（右下）+ 内高光（左上） -->
-                    <filter id="piece-shadow" x="-50%" y="-50%" width="200%" height="200%"
-                            color-interpolation-filters="sRGB">
-                        <!-- 主外阴影：暖褐色，大模糊，投射到右下 -->
-                        <feOffset dx="5" dy="5" in="SourceAlpha" result="outer1"/>
-                        <feGaussianBlur stdDeviation="10" in="outer1" result="outer1Blur"/>
-                        <feFlood flood-color="#281e14" flood-opacity="0.25" result="outer1Color"/>
-                        <feComposite in="outer1Color" in2="outer1Blur" operator="in" result="outer1Layer"/>
-                        <!-- 紧贴阴影：小偏移，增加厚重感 -->
-                        <feOffset dx="1" dy="2" in="SourceAlpha" result="outer2"/>
-                        <feGaussianBlur stdDeviation="2" in="outer2" result="outer2Blur"/>
-                        <feFlood flood-color="#000" flood-opacity="0.15" result="outer2Color"/>
-                        <feComposite in="outer2Color" in2="outer2Blur" operator="in" result="outer2Layer"/>
-                        <!-- 内高光：左上迎光面，让棋子鼓起来 -->
-                        <feGaussianBlur stdDeviation="3" in="SourceAlpha" result="innerBlur"/>
-                        <feFlood flood-color="#fff" flood-opacity="0.8" result="innerColor"/>
-                        <feComposite in="innerColor" in2="innerBlur" operator="in" result="innerRaw"/>
-                        <feOffset dx="2" dy="2" in="innerRaw" result="innerLayer"/>
-                        <!-- 合成：外阴影在后，源图形在中，内高光在前 -->
-                        <feMerge>
-                            <feMergeNode in="outer1Layer"/>
-                            <feMergeNode in="outer2Layer"/>
-                            <feMergeNode in="SourceGraphic"/>
-                            <feMergeNode in="innerLayer"/>
-                        </feMerge>
                     </filter>
 
                     <!-- 棋盘边框立体感滤镜：突起 + 投影 -->
@@ -184,7 +130,10 @@
             <div class="modal-content">
                 <h2 id="result-title"></h2>
                 <div id="result-stats"></div>
-                <button id="btn-result-new-game">再来一局</button>
+                <div class="modal-buttons">
+                    <button id="btn-result-new-game">再来一局</button>
+                    <button id="btn-result-copy" class="hidden">复制记录</button>
+                </div>
             </div>
         </div>
     </div>

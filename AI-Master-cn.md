@@ -1,8 +1,8 @@
-# 九连棋 AI 引擎设计规范
+# Nine Men's Morris AI 引擎设计规范
 
 ## 1. 概述
 
-本项目实现了一个具备完整博弈能力的九连棋（Nine Men's Morris）AI 引擎。引擎采用 Minimax + Alpha-Beta 搜索，配合阶段感知的静态评估函数和动态策略状态机，支持三种性能模式（Eco / Normal / Master），可生成结构化战术报告以对接 LLM 自然语言输出。
+本项目实现了一个具备完整博弈能力的Nine Men's Morris（Nine Men's Morris）AI 引擎。引擎采用 Minimax + Alpha-Beta 搜索，配合阶段感知的静态评估函数和动态策略状态机，支持三种性能模式（Eco / Normal / Master），可生成结构化战术报告以对接 LLM 自然语言输出。
 
 ## 2. 系统架构
 

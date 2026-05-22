@@ -1,5 +1,5 @@
 #!/bin/bash
-# 九连棋 AI 循环赛
+# Nine Men's Morris AI 循环赛
 # 3 级 AI（Eco / Normal / Master）
 # 每对 4 轮（轮流先手），同级对战也是 4 轮
 # 共 6 组 × 4 轮 = 24 场
@@ -7,7 +7,7 @@
 cd "$(dirname "$0")"
 mkdir -p battle_logs
 
-echo "=== 九连棋 AI 循环赛（24 场） ==="
+echo "=== Nine Men's Morris AI 循环赛（24 场） ==="
 echo ""
 
 # 对战配置：模式1 模式2 轮次

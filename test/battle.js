@@ -1,5 +1,5 @@
 // ========================================================
-// 九连棋 AI 对战测试
+// Nine Men's Morris AI 对战测试
 // 用法: node battle.js <mode1> <mode2> <round> <output>
 // 示例: node battle.js Normal Master 1 battle_Normal_vs_Master_r1.log
 // ========================================================
@@ -92,7 +92,7 @@ function runBattle() {
     const t0 = Date.now();
 
     log('========================================================');
-    log(`九连棋 AI 对战日志`);
+    log(`Nine Men's Morris AI 对战日志`);
     log(`日期: ${new Date().toISOString()}`);
     log(`白方 (TYPE_OPPONENT): ${mode1} 模式`);
     log(`黑方 (TYPE_AI):    ${mode2} 模式`);

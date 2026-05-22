@@ -1,5 +1,5 @@
 // ========================================================
-// 九连棋 UI 控制器
+// Nine Men's Morris — UI 控制器
 // ========================================================
 
 const Game = (() => {
@@ -123,8 +123,9 @@ const Game = (() => {
 
         const board = E.getBoard();
         for (const target of legalTargets) {
-            // 吃子高亮已通过棋子 .capture 样式处理，跳过
-            if (board[target] !== null && board[target] !== currentLegalPlayer) continue;
+            // 吃子目标由棋子 .capture 样式处理，此处只画空位高亮
+            const isCaptureTarget = board[target] !== null;
+            if (isCaptureTarget) continue;
 
             const { x, y } = posToSvg(target);
             const circle = createSvgElement('circle', {
@@ -215,10 +216,14 @@ const Game = (() => {
         renderBoard();
     }
 
-    function deselectPiece() {
+    function resetSelection() {
         selectedPos = null;
         legalTargets = [];
         currentLegalPlayer = null;
+    }
+
+    function deselectPiece() {
+        resetSelection();
         renderBoard();
     }
 
@@ -260,12 +265,7 @@ const Game = (() => {
 
     async function executePlayerMove(move) {
         await animateAndExecute(move);
-
-        // 清除选中状态
-        selectedPos = null;
-        legalTargets = [];
-        currentLegalPlayer = null;
-
+        resetSelection();
         updateStatus();
 
         // 检查游戏是否结束
@@ -288,6 +288,21 @@ const Game = (() => {
         await doAITurn();
     }
 
+    async function handleAICapture() {
+        await sleep(300);
+        const captureMoves = E.generateLegalMoves(E.TYPE_AI);
+        if (captureMoves.length === 0) return;
+        let best = null, bestScore = -Infinity;
+        for (const cm of captureMoves) {
+            E.makeMove(cm);
+            const s = AI.evaluatePosition();
+            E.undoMove();
+            if (s > bestScore) { bestScore = s; best = cm; }
+        }
+        await animateAndExecute(best);
+        updateStatus();
+    }
+
     async function doAITurn() {
         if (E.isGameOver()) return;
 
@@ -306,12 +321,6 @@ const Game = (() => {
             return;
         }
 
-        // DEBUG: AI 走法日志
-        if (debugMode) {
-            const aiState = E.getRawState().playerAI;
-            console.log(`[AI] ${result.move.type} ${result.move.from}→${result.move.to} | hand=${aiState.piecesOnHand} board=${aiState.piecesOnBoard} | depth=${result.stats.depth} score=${result.score}`);
-        }
-
         await animateAndExecute(result.move);
 
         // AI 台词
@@ -326,20 +335,7 @@ const Game = (() => {
 
         // AI 成行后需要吃子
         if (E.getRawState().millMove && E.getRawState().currentPlayer === E.TYPE_AI) {
-            await sleep(300);
-            const captureMoves = E.generateLegalMoves(E.TYPE_AI);
-            if (captureMoves.length > 0) {
-                // 用静态评估选最佳吃子
-                let best = null, bestScore = -Infinity;
-                for (const cm of captureMoves) {
-                    E.makeMove(cm);
-                    const s = AI.evaluatePosition();
-                    E.undoMove();
-                    if (s > bestScore) { bestScore = s; best = cm; }
-                }
-                await animateAndExecute(best);
-                updateStatus();
-            }
+            await handleAICapture();
         }
 
         isAIThinking = false;
@@ -397,9 +393,10 @@ const Game = (() => {
         const state = E.getRawState();
         const el = document.getElementById('phase-display');
         const opp = state.playerOpponent;
+        const aiLabel = DIFFICULTIES.find(d => d.key === settings.difficulty).label;
 
         if (state.gameOver) {
-            el.textContent = state.winner === E.TYPE_OPPONENT ? '你赢了！' : 'AI 获胜';
+            el.textContent = state.winner === E.TYPE_OPPONENT ? '你赢了！' : `${aiLabel}获胜`;
         } else if (state.millMove) {
             el.textContent = '吃子阶段';
         } else if (opp.piecesOnHand > 0) {
@@ -415,6 +412,78 @@ const Game = (() => {
         document.getElementById('message-display').textContent = text ? ' - ' + text : '';
     }
 
+    function exportGameRecord() {
+        const state = E.getRawState();
+        const history = state.moveHistory;
+        const aiLabel = DIFFICULTIES.find(d => d.key === settings.difficulty).label;
+        const isPlayerFirst = settings.firstPlayer === 'opponent';
+        const isPlayerWin = state.winner === E.TYPE_OPPONENT;
+        const rounds = Math.floor(history.length / 2);
+
+        // 玩家标签
+        const labelOf = (player) => player === E.TYPE_OPPONENT ? '玩家' : aiLabel;
+        const firstLabel = isPlayerFirst ? '玩家' : aiLabel;
+        const resultLabel = isPlayerWin ? '玩家获胜' : `${aiLabel}获胜`;
+
+        const lines = [];
+        lines.push("=== Nine Men's Morris 对战记录 ===");
+        lines.push(`先手：${firstLabel}（${aiLabel} vs 玩家）`);
+        lines.push(`结果：${resultLabel}（第 ${rounds} 回合）`);
+        lines.push('');
+
+        // 走法列表
+        for (let i = 0; i < history.length; i++) {
+            const m = history[i];
+            const num = String(i + 1).padStart(3);
+            const name = labelOf(m.player);
+
+            // 检测成行：当前非 remove 步，下一步是同玩家的 remove
+            const next = history[i + 1];
+            const formsMill = m.type !== 'remove' && next
+                && next.player === m.player && next.type === 'remove';
+
+            let desc = '';
+            switch (m.type) {
+                case 'place':
+                    desc = `置于 ${m.to}`;
+                    break;
+                case 'move':
+                    desc = `${m.from}→${m.to}`;
+                    break;
+                case 'fly':
+                    desc = `${m.from}⇒${m.to}`;
+                    break;
+                case 'remove':
+                    desc = `吃 ${labelOf(m.removedFrom)}@${m.remove}`;
+                    break;
+            }
+
+            if (formsMill) desc += '，成行';
+            lines.push(`${num}. ${name}  ${desc}`);
+        }
+
+        lines.push('');
+        lines.push('--- 统计 ---');
+        const opp = state.playerOpponent;
+        const ai = state.playerAI;
+        lines.push(`玩家：场上 ${opp.piecesOnBoard} / 手持 ${opp.piecesOnHand} / 被吃 ${opp.piecesLost}`);
+        lines.push(`${aiLabel}：场上 ${ai.piecesOnBoard} / 手持 ${ai.piecesOnHand} / 被吃 ${ai.piecesLost}`);
+
+        return lines.join('\n');
+    }
+
+    async function copyRecord() {
+        const text = exportGameRecord();
+        const btn = document.getElementById('btn-result-copy');
+        try {
+            await navigator.clipboard.writeText(text);
+            btn.textContent = '已复制';
+        } catch {
+            btn.textContent = '复制失败';
+        }
+        setTimeout(() => { btn.textContent = '复制记录'; }, 1500);
+    }
+
     function showGameResult() {
         const state = E.getRawState();
         const isPlayerWin = state.winner === E.TYPE_OPPONENT;
@@ -428,8 +497,9 @@ const Game = (() => {
         const rounds = Math.floor(state.moveHistory.length / 2);
         const opp = state.playerOpponent;
         const ai = state.playerAI;
-        const firstLabel = isPlayerFirst ? '玩家' : 'AI';
-        const secondLabel = isPlayerFirst ? 'AI' : '玩家';
+        const aiLabel = DIFFICULTIES.find(d => d.key === settings.difficulty).label;
+        const firstLabel = isPlayerFirst ? '玩家' : aiLabel;
+        const secondLabel = isPlayerFirst ? aiLabel : '玩家';
         const firstData = isPlayerFirst ? opp : ai;
         const secondData = isPlayerFirst ? ai : opp;
 
@@ -442,6 +512,11 @@ const Game = (() => {
 
         // 显示弹窗
         document.getElementById('game-result-modal').classList.remove('hidden');
+
+        // Debug 模式下显示「复制记录」按钮
+        const copyBtn = document.getElementById('btn-result-copy');
+        copyBtn.classList.toggle('hidden', !debugMode);
+        copyBtn.onclick = copyRecord;
 
         // AI 台词
         if (isPlayerWin) {
@@ -545,11 +620,11 @@ const Game = (() => {
         const diffBtn = document.getElementById('btn-difficulty');
         const firstBtn = document.getElementById('btn-first-player');
         diffBtn.dataset.value = settings.difficulty;
-        diffBtn.textContent = DIFFICULTIES.find(d => d.key === settings.difficulty).label;
         firstBtn.dataset.value = settings.firstPlayer;
         firstBtn.textContent = FIRST_PLAYERS.find(f => f.key === settings.firstPlayer).label;
 
         const diffLabel = DIFFICULTIES.find(d => d.key === settings.difficulty).label;
+        diffBtn.textContent = diffLabel;
         document.getElementById('label-opponent').textContent = '玩家';
         document.getElementById('label-ai').textContent = diffLabel;
 
@@ -571,7 +646,6 @@ const Game = (() => {
     function toggleDebug() {
         debugMode = !debugMode;
         svgDebug.style.display = debugMode ? 'block' : 'none';
-        console.log(`Debug mode: ${debugMode ? 'ON' : 'OFF'}`);
     }
 
     function newGame(overrides) {
@@ -587,8 +661,7 @@ const Game = (() => {
         AI.setPerformanceMode(settings.difficulty);
         E.init({ firstPlayer });
 
-        selectedPos = null;
-        legalTargets = [];
+        resetSelection();
         isAIThinking = false;
 
         // 隐藏结果弹窗
@@ -630,11 +703,6 @@ const Game = (() => {
             const cy = rect.top + rect.height / 2;
             const dist = Math.hypot(e.clientX - cx, e.clientY - cy);
             if (dist < 24) toggleDebug();
-        });
-
-        // 响应式切换时重新渲染台词呈现方式
-        window.addEventListener('resize', () => {
-            // 切换时不需要特殊处理，下次台词会自动走新通道
         });
     }
 

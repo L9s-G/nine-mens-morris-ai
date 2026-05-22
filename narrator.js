@@ -168,7 +168,7 @@ const Narrator = (() => {
 
         return {
             role: "system",
-            content: `你是一位九连棋宗师，性格冷酷而自信。
+            content: `你是一位Nine Men's Morris宗师，性格冷酷而自信。
 
 当前博弈状态：
 - 阶段：${report.context.phase}
