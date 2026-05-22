@@ -397,40 +397,72 @@ const AI = (() => {
 
         if (moves.length === 0) return null;
 
-        const moveScores = [];
+        // 迭代加深：从深度 1 搜索到目标深度，超时安全降级到上一层完整结果
+        let bestScores = [];
+        let completedDepth = 0;
 
-        for (let i = 0; i < moves.length; i++) {
-            // 时间限制检查（在主循环中）
+        for (let iterDepth = 1; iterDepth <= d; iterDepth++) {
+            // 每层迭代前检查时间
             if (Date.now() - startTime > MAX_THINK_TIME) {
                 timeLimitReached = true;
                 break;
             }
+            timeLimitReached = false;
 
-            const move = moves[i];
+            // 用上一层的评分排序，让更好的走法先被搜索（提升剪枝率）
+            let orderedMoves = moves;
+            if (bestScores.length > 0) {
+                const scoreMap = new Map();
+                for (const entry of bestScores) {
+                    const key = `${entry.move.from},${entry.move.to},${entry.move.remove}`;
+                    scoreMap.set(key, entry.score);
+                }
+                orderedMoves = [...moves].sort((a, b) => {
+                    const ka = `${a.from},${a.to},${a.remove}`;
+                    const kb = `${b.from},${b.to},${b.remove}`;
+                    return (scoreMap.get(kb) || -Infinity) - (scoreMap.get(ka) || -Infinity);
+                });
+            }
 
-            const result = E.makeMove(move);
-            // minimax 返回 AI 视角分数：AI 取原值，OPPONENT 取反
-            const nextIsMax = result.formedMill ? isAI : !isAI;
-            // 成行+吃子是同一个逻辑回合，成行时不扣深度
-            const nextDepth = result.formedMill ? d : d - 1;
-            const rawScore = isAI ? minimax(nextDepth, -Infinity, Infinity, nextIsMax) : -minimax(nextDepth, -Infinity, Infinity, nextIsMax);
-            E.undoMove();
+            const iterScores = [];
+            for (let i = 0; i < orderedMoves.length; i++) {
+                if (Date.now() - startTime > MAX_THINK_TIME) {
+                    timeLimitReached = true;
+                    break;
+                }
 
-            // minimax 内部可能已超时，丢弃不完整结果
-            if (timeLimitReached) break;
+                const move = orderedMoves[i];
+                const result = E.makeMove(move);
+                const nextIsMax = result.formedMill ? isAI : !isAI;
+                const nextDepth = result.formedMill ? iterDepth : iterDepth - 1;
+                const rawScore = isAI ? minimax(nextDepth, -Infinity, Infinity, nextIsMax) : -minimax(nextDepth, -Infinity, Infinity, nextIsMax);
+                E.undoMove();
 
-            const reportEntry = report.suggestedMoves.find(
-                r => r.move.from === move.from && r.move.to === move.to && r.move.remove === move.remove
-            );
-            const tags = reportEntry ? reportEntry.tags : [];
-            const risk = reportEntry ? reportEntry.risk : 'low';
+                if (timeLimitReached) break;
 
-            const finalScore = applyModeBonus(rawScore, tags, mode);
+                const reportEntry = report.suggestedMoves.find(
+                    r => r.move.from === move.from && r.move.to === move.to && r.move.remove === move.remove
+                );
+                const tags = reportEntry ? reportEntry.tags : [];
+                const risk = reportEntry ? reportEntry.risk : 'low';
+                const finalScore = applyModeBonus(rawScore, tags, mode);
 
-            moveScores.push({ move, score: finalScore, rawScore, tags, risk });
+                iterScores.push({ move, score: finalScore, rawScore, tags, risk });
+            }
+
+            // 本层完整评估了所有走法 → 保存结果，继续下一层
+            if (!timeLimitReached && iterScores.length === moves.length) {
+                bestScores = iterScores;
+                completedDepth = iterDepth;
+            } else {
+                // 本层超时或不完整 → 丢弃，使用上一层结果
+                break;
+            }
         }
 
-        // 如果没有评估任何走法（时间限制），返回第一个合法走法
+        const moveScores = bestScores;
+
+        // 如果没有评估任何走法（连深度 1 都没完成），返回第一个合法走法
         if (moveScores.length === 0) {
             return {
                 move: moves[0],
@@ -439,7 +471,7 @@ const AI = (() => {
                 report,
                 allScores: [],
                 stats: {
-                    depth: d,
+                    depth: completedDepth,
                     nodeCount,
                     elapsed: Date.now() - startTime,
                     nodesPerMs: 0,
@@ -468,7 +500,7 @@ const AI = (() => {
                 mode,
                 report,
                 allScores: moveScores,
-                stats: { depth: d, nodeCount, elapsed, nodesPerMs: 0, config: config.label, timeLimited: true }
+                stats: { depth: completedDepth, nodeCount, elapsed, nodesPerMs: 0, config: config.label, timeLimited: true }
             };
         }
 
@@ -481,7 +513,8 @@ const AI = (() => {
             report,
             allScores: moveScores,
             stats: {
-                depth: d,
+                depth: completedDepth,
+                targetDepth: d,
                 nodeCount,
                 elapsed,
                 nodesPerMs: nodeCount > 0 ? Math.round(nodeCount / elapsed) : 0,

@@ -89,14 +89,31 @@ When depth is not specified, adjusted dynamically based on game context:
 - **Suppression mode**: depth +1 (low branching factor, room to search deeper)
 - **Decisive + Flying**: depth −1 (branching factor explosion)
 
-### 4.4 Time Management
+### 4.4 Iterative Deepening with Time Management
 
+The search uses iterative deepening: search depth 1, then 2, ..., up to target depth `d`. Each iteration uses the previous depth's move ordering to improve alpha-beta pruning. On timeout, the search falls back to the last fully completed depth — never mixing results from different depths.
+
+**Flow**:
+1. For each iteration depth `iterDepth = 1 .. d`:
+   - Check timeout before starting the iteration
+   - Use previous iteration's scores to reorder moves (best-first)
+   - Evaluate all root moves at `iterDepth`
+   - If all moves evaluated without timeout → save as `bestScores`, continue to next depth
+   - If timeout mid-evaluation → discard incomplete iteration, break
+2. Use `bestScores` from the last fully completed depth for move selection
+
+**Time constraints**:
 - Max think time: 5 seconds
-- Checked every 1000 nodes in minimax
+- Checked every 1000 nodes inside minimax
 - Checked at start of each root move iteration
-- Incomplete results from mid-evaluation timeout are discarded
+- Checked before evaluating each root move within an iteration
 
-Measured performance: depth 4 typically 9-588ms, depth 5 mostly 63-513ms, occasional spikes up to the 5-second limit (~1.2M nodes). The timeout serves as a safety net for extreme positions.
+**Stats output**:
+- `depth`: actual completed depth (may be less than `targetDepth` on timeout)
+- `targetDepth`: intended search depth
+- `timeLimited`: whether timeout was reached
+
+Measured performance: depth 4 typically 9-588ms, depth 5 mostly 63-513ms, occasional spikes up to the 5-second limit (~1.2M nodes).
 
 ## 5. Static Evaluation
 
@@ -217,15 +234,22 @@ Use case: AI can deliberately choose seemingly bad moves to lure opponents into 
 |------|-------|------------|-------------|-------|----------|
 | Eco | 1 | off | 0.8 | 2 | Lightweight, simulates novice |
 | Normal | 3 | on | 0.3 | 3 | Balanced, suitable for casual play |
-| Master | 4 | on | phase-mapped | 2 | Full power, competitive level |
+| Master | 4 (up to 5 in Suppression) | on | phase-mapped | 2 | Full power, competitive level |
+
+Dynamic depth adjustment (when depth not explicitly specified):
+- Placement with many pieces on hand (≥6): depth capped at 2 (high branching factor)
+- Suppression mode: base depth +1 (low branching factor), max 6
+- Decisive + Flying: base depth −1 (branching factor explosion), min 2
 
 ## 10. Fallback Safety
 
 Multiple layers ensure the main decision interface never returns null:
 
 1. `moves.length === 0` → return null (game should be over)
-2. Timeout with empty `moveScores` → return first legal move
+2. Iterative deepening timeout → discard incomplete iteration, fall back to last fully completed depth; if no depth completed, return first legal move
 3. `pickWithWeightedRandom` returns null → return first legal move
+
+The iterative deepening design guarantees that on timeout, the returned scores are always from a single, fully evaluated depth — never a mix of shallow and deep evaluations.
 
 ## 11. Test Infrastructure
 
@@ -266,3 +290,25 @@ Key problems discovered and solved during development, with reference value for 
 **Problem**: Alpha-Beta pruning efficiency depends heavily on move traversal order.
 
 **Fix**: Capture > Mill formation > Placement priority. Mill detection via temporary board modification, no `makeMove` overhead.
+
+### 12.6 Iterative Deepening + Synchronous Timestamp Time Management
+
+**Problem**: In JavaScript's single-threaded environment, dense minimax search blocks the event loop. `setTimeout`-based timeout control cannot take effect mid-search. A single-depth search with timeout produces mixed-quality scores — some moves evaluated at full depth, others truncated — making the results unreliable for comparison.
+
+**Fix**: Two-layer solution:
+1. **Iterative deepening**: Search depth 1→d sequentially. Each depth uses previous depth's move ordering for better pruning. On timeout, discard the incomplete iteration and fall back to the last fully completed depth. This guarantees all returned scores are from the same depth.
+2. **Synchronous timestamp polling**: Inside the search tree, minimax checks `Date.now()` every 1000 nodes. The root iteration loop checks before starting each depth and before evaluating each root move. On timeout, `timeLimitReached` is flagged and the search immediately breaks.
+
+This "iterative deepening + high-frequency synchronous probe" pattern is generally applicable to single-threaded game AI: it provides anytime behavior (always have a valid answer), progressive quality improvement, and millisecond-granularity timeout detection without async callbacks.
+
+### 12.7 Static Evaluation "Base Noise Instinct"
+
+**Problem**: When timeout truncates search to minimal depth, can the AI still spot immediate captures?
+
+**Fix**: The static evaluation assigns overwhelming weight to mills (+40) and material advantage (+150 per piece). Even at D=0 (pure static eval), the AI perceives the massive score differential of "form mill and capture." This "high-weight base noise" ensures the AI maintains basic capture instinct at any search depth, never missing obvious kill opportunities.
+
+### 12.8 Dynamic Strategy State Machine
+
+**Problem**: A single-personality AI is predictable and lacks "strategic awareness."
+
+**Fix**: The AI dynamically switches between three personalities based on real-time game context — Expansion (稳健布局), Suppression (窒息围堵), Decisive (全力收割). Each mode adjusts not only search depth (Suppression +1, Decisive+Flying −1) but also applies mode-specific score bonuses via `applyModeBonus` (e.g., Suppression boosts `SQUEEZE` tags, Decisive boosts `ATTACK` tags). This "strategy perception + tactical execution" dual-layer driving gives the AI a human-like chess style that knows when to build, when to squeeze, and when to kill.
