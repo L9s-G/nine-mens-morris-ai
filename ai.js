@@ -77,10 +77,6 @@ const AI = (() => {
     // ==================== 静态评估 ====================
 
     /**
-     * 计算阶段因子（用于平滑权重过渡）
-     * 返回 0~1：0 = 放置早期，1 = 放置末期/走子阶段
-     */
-    /**
      * 对当前局面进行静态评估
      * 正值表示 AI 优势，负值表示对手优势
      */
@@ -196,7 +192,7 @@ const AI = (() => {
             let quickScore = 0;
             if (m.remove !== null) quickScore += 1000;  // 吃子最高优先
             // 轻量成行检测：模拟落子后检查是否成磨坊
-            if (m.to >= 0 && E.isInMill) {
+            if (m.to >= 0) {
                 const saved = board[m.to];
                 const savedFrom = m.from >= 0 ? board[m.from] : null;
                 board[m.to] = m.player;
@@ -319,13 +315,6 @@ const AI = (() => {
     // ==================== 主决策函数 ====================
 
     /**
-     * 加权随机选择（softmax 分布）
-     * 高分走法概率高，低分走法概率低，呈正态/对数分布
-     * @param {Array} sorted - 按分数降序排列的走法数组
-     * @param {number} temperature - 温度参数（越小越确定，越大越随机）
-     * @returns {object} 选中的走法条目
-     */
-    /**
      * 基于排名的指数分布随机选择（Top-k 截断）
      * @param {Array} sorted - 已按分数降序排列的走法数组
      * @param {number} temperature - 温度参数，控制指数衰减速度
@@ -333,7 +322,7 @@ const AI = (() => {
      */
     function pickWithWeightedRandom(sorted, temperature = 1.0, topK = 3) {
         if (sorted.length === 0) return null;
-        if (sorted.length === 1) return sorted[0];
+        if (sorted.length === 1 || temperature === 0) return sorted[0];
 
         // 1. Top-k 截断
         const candidates = sorted.slice(0, Math.min(topK, sorted.length));
