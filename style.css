@@ -1,32 +1,64 @@
 /* ========================================================
-   Nine Men's Morris — 响应式布局
+   Nine Men's Morris — 样式表
+   分区：Variables → Reset → Layout → Board → Pieces →
+         Status Panel → Danmaku & Bubble → Modal → Responsive
    ======================================================== */
 
-/* ==================== Reset & Variables ==================== */
+/* ==================== Variables ==================== */
 
 :root {
+    /* 主题色 */
     --color-bg: #1a1a2e;
     --color-surface: #16213e;
-    --color-board: #f5deb3;
-    --color-line: #8B7355;
-    --color-white: #f0f0f0;
-    --color-black: #2d2d2d;
-    --color-highlight: rgba(76, 175, 80, 0.5);
-    --color-selected: rgba(255, 235, 59, 0.6);
-    --color-danger: rgba(244, 67, 54, 0.5);
     --color-text: #e0e0e0;
     --color-text-dim: #888;
     --color-accent: #4fc3f7;
-    --radius: 8px;
-    --header-h: 48px;
+    --color-border: #444;
+    --color-border-dark: #333;
+    --color-hover: rgba(255, 255, 255, 0.08);
+    --color-active: rgba(255, 255, 255, 0.15);
+    --color-overlay: rgba(0, 0, 0, 0.6);
+
+    /* 棋盘色 */
+    --color-board-face: #e6cb9a;
+    --color-board-stroke: #b8860b;
+    --color-board-line: #8B7355;
+    --color-board-hover: #e6cb9a;
+    --color-board-highlight: #e6cb9a;
+
+    /* 棋子色 */
+    --color-white: #f0f0f0;
+    --color-white-stroke: #e0e0e0;
+    --color-black: #2d2d2d;
+    --color-black-stroke: #222;
+    --color-capture: #ff8a80;
+    --color-capture-glow: #f44336;
+    --color-thinking: #81d4fa;
+
+    /* 圆点色 */
+    --color-dot-black: #555;
+    --color-dot-black-board: #888;
+    --color-dot-lost: #555;
+
+    /* 气泡 / 弹幕色 */
+    --color-bubble: #2a2a4a;
+    --color-danmaku: #fff;
 
     /* 棋子阴影色板 */
-    --shadow-warm: rgba(40, 30, 20, 0.3);       /* 暖褐外阴影 */
-    --shadow-black: rgba(0, 0, 0, 0.45);        /* 黑子外阴影 */
-    --highlight-white: rgba(255, 255, 255, 0.9); /* 白子内高光 */
-    --highlight-soft: rgba(255, 255, 255, 0.35); /* 黑子内高光 */
-    --shadow-ambient: rgba(0, 0, 0, 0.15);      /* 环境暗面 */
+    --shadow-warm: rgba(40, 30, 20, 0.3);
+    --shadow-black: rgba(0, 0, 0, 0.45);
+    --highlight-white: rgba(255, 255, 255, 0.9);
+    --highlight-soft: rgba(255, 255, 255, 0.35);
+    --shadow-ambient: rgba(0, 0, 0, 0.15);
+    --shadow-board: rgba(0, 0, 0, 0.4);
+    --shadow-danmaku: rgba(0, 0, 0, 0.7);
+    --shadow-modal: rgba(0, 0, 0, 0.5);
+
+    /* 尺寸 */
+    --radius: 8px;
 }
+
+/* ==================== Reset ==================== */
 
 * {
     margin: 0;
@@ -37,63 +69,20 @@
 html, body {
     height: 100dvh;
     overflow: hidden;
-    font-family: -apple-system, "Microsoft YaHei", sans-serif;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
     background: var(--color-bg);
     color: var(--color-text);
     -webkit-tap-highlight-color: transparent;
     user-select: none;
 }
 
-/* ==================== Portrait Layout ==================== */
+/* ==================== Layout ==================== */
 
 #app {
     display: flex;
     flex-direction: column;
     height: 100dvh;
 }
-
-#header {
-    height: var(--header-h);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 16px;
-    background: var(--color-surface);
-    flex-shrink: 0;
-}
-
-#header h1 {
-    font-size: 20px;
-    font-weight: 600;
-    letter-spacing: 2px;
-}
-
-#thinking-indicator {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 14px;
-    color: var(--color-accent);
-}
-
-#thinking-indicator.hidden {
-    display: none;
-}
-
-.spinner {
-    width: 18px;
-    height: 18px;
-    border: 2px solid var(--color-accent);
-    border-top-color: transparent;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-/* ==================== Board Area ==================== */
 
 #board-area {
     flex: 1;
@@ -108,18 +97,31 @@ html, body {
 #board {
     width: 100%;
     height: 100%;
-    max-width: min(100% - 16px, 100dvh - var(--header-h) - 220px);
-    max-height: min(100% - 16px, 100dvh - var(--header-h) - 220px);
+    max-width: min(100% - 16px, 100dvh - 200px);
+    max-height: min(100% - 16px, 100dvh - 200px);
     aspect-ratio: 1;
     display: block;
 }
 
-/* SVG 棋盘样式 */
+/* ==================== Board ==================== */
+
+#board-face {
+    fill: var(--color-board-face);
+    stroke: var(--color-board-stroke);
+    stroke-width: 6;
+    filter: drop-shadow(3px 5px 6px var(--shadow-board));
+}
 
 .board-dot {
-    fill: #1a1a2e;
+    fill: var(--color-bg);
     stroke: none;
     pointer-events: none;
+}
+
+#board-lines {
+    stroke: var(--color-board-line);
+    stroke-width: 3;
+    fill: none;
 }
 
 .board-position {
@@ -130,9 +132,18 @@ html, body {
 }
 
 .board-position:hover {
-    fill: #e6cb9a;
+    fill: var(--color-board-hover);
     filter: url(#inset-shadow);
 }
+
+.highlight-move {
+    fill: var(--color-board-highlight);
+    r: 14;
+    pointer-events: none;
+    filter: url(#inset-shadow);
+}
+
+/* ==================== Pieces ==================== */
 
 .piece {
     r: 22;
@@ -143,8 +154,7 @@ html, body {
 
 .piece-white {
     fill: var(--color-white);
-    stroke: #e0e0e0;
-    /* 外阴影 → 内高光(左上) → 暗面(右下) */
+    stroke: var(--color-white-stroke);
     filter:
         drop-shadow(4px 4px 5px var(--shadow-warm))
         drop-shadow(-1px -1px 1px var(--highlight-white))
@@ -153,8 +163,7 @@ html, body {
 
 .piece-black {
     fill: var(--color-black);
-    stroke: #222;
-    /* 外阴影 → 内高光(左上，黑子需更强对比) */
+    stroke: var(--color-black-stroke);
     filter:
         drop-shadow(4px 4px 5px var(--shadow-black))
         drop-shadow(-1.5px -1.5px 1px var(--highlight-soft));
@@ -163,7 +172,6 @@ html, body {
 .piece.selected {
     stroke: var(--color-accent);
     stroke-width: 3;
-    /* 外阴影 → 内高光 → 暗面 → 选中发光 */
     filter:
         drop-shadow(4px 4px 5px var(--shadow-warm))
         drop-shadow(-1px -1px 1px var(--highlight-white))
@@ -172,14 +180,13 @@ html, body {
 }
 
 .piece.capture {
-    stroke: #ff8a80;
+    stroke: var(--color-capture);
     stroke-width: 3;
-    /* 外阴影 → 内高光 → 暗面 → 危险发光 */
     filter:
         drop-shadow(4px 4px 5px var(--shadow-warm))
         drop-shadow(-1px -1px 1px var(--highlight-white))
         drop-shadow(1px 1px 2px var(--shadow-ambient))
-        drop-shadow(0 0 8px #f44336);
+        drop-shadow(0 0 8px var(--color-capture-glow));
 }
 
 .piece.captured {
@@ -195,24 +202,30 @@ html, body {
     100%                { opacity: 0; r: 0; }
 }
 
-.highlight-move {
-    fill: #e6cb9a;
-    r: 14;
-    pointer-events: none;
-    filter: url(#inset-shadow);
-}
-
-/* ==================== Status Panel (Portrait) ==================== */
+/* ==================== Status Panel ==================== */
 
 #status-panel {
     flex-shrink: 0;
-    height: 180px;
     background: var(--color-surface);
-    padding: 12px 16px;
+    padding: 10px 16px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
 }
+
+#panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+#panel-header h1 {
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 1px;
+}
+
+/* 棋子圆点 */
 
 #player-status {
     display: flex;
@@ -226,13 +239,8 @@ html, body {
     gap: 10px;
 }
 
-#player-status.ai-first #status-opponent {
-    order: 1;
-}
-
-#player-status.ai-first #status-ai {
-    order: 0;
-}
+#player-status.ai-first #status-opponent { order: 1; }
+#player-status.ai-first #status-ai { order: 0; }
 
 .player-label {
     font-size: 14px;
@@ -250,28 +258,40 @@ html, body {
     width: 16px;
     height: 16px;
     border-radius: 50%;
+    border: 2px solid transparent;
     transition: all 0.2s;
 }
 
-.dot.hand {
-    /* 在手：实心 */
-}
+.dot.board { background: transparent !important; }
+.dot.lost  { background: transparent !important; border: 2px dashed var(--color-dot-lost); }
 
-.dot.board {
-    /* 在盘：空心 */
-    background: transparent !important;
-}
-
-.dot.lost {
-    /* 已失：灰色虚线 */
-    background: transparent !important;
-    border: 2px dashed #555;
-}
-
-.dot-white.hand { background: var(--color-white); }
+.dot-white.hand  { background: var(--color-white); }
 .dot-white.board { border: 2px solid var(--color-white); }
-.dot-black.hand { background: #555; }
-.dot-black.board { border: 2px solid #888; }
+.dot-black.hand  { background: var(--color-dot-black); }
+.dot-black.board { border: 2px solid var(--color-dot-black-board); }
+
+/* AI 思考走马灯 */
+
+.piece-dots.thinking .dot {
+    animation: dot-think 1.2s ease-in-out infinite;
+}
+
+.piece-dots.thinking .dot:nth-child(1) { animation-delay: 0s; }
+.piece-dots.thinking .dot:nth-child(2) { animation-delay: 0.1s; }
+.piece-dots.thinking .dot:nth-child(3) { animation-delay: 0.2s; }
+.piece-dots.thinking .dot:nth-child(4) { animation-delay: 0.3s; }
+.piece-dots.thinking .dot:nth-child(5) { animation-delay: 0.4s; }
+.piece-dots.thinking .dot:nth-child(6) { animation-delay: 0.5s; }
+.piece-dots.thinking .dot:nth-child(7) { animation-delay: 0.6s; }
+.piece-dots.thinking .dot:nth-child(8) { animation-delay: 0.7s; }
+.piece-dots.thinking .dot:nth-child(9) { animation-delay: 0.8s; }
+
+@keyframes dot-think {
+    0%, 100% { border-color: var(--color-accent); box-shadow: none; }
+    50%      { border-color: var(--color-thinking); box-shadow: 0 0 6px var(--color-accent); }
+}
+
+/* 游戏信息 */
 
 #game-info {
     font-size: 13px;
@@ -288,6 +308,8 @@ html, body {
     color: var(--color-text-dim);
 }
 
+/* 设置 & 控制按钮 */
+
 #settings-row {
     display: flex;
     gap: 8px;
@@ -296,7 +318,7 @@ html, body {
 .setting-btn {
     flex: 1;
     padding: 6px 8px;
-    border: 1px solid #444;
+    border: 1px solid var(--color-border);
     border-radius: var(--radius);
     background: transparent;
     color: var(--color-text);
@@ -305,13 +327,8 @@ html, body {
     transition: background 0.15s;
 }
 
-.setting-btn:hover {
-    background: rgba(255, 255, 255, 0.08);
-}
-
-.setting-btn:active {
-    background: rgba(255, 255, 255, 0.15);
-}
+.setting-btn:hover  { background: var(--color-hover); }
+.setting-btn:active { background: var(--color-active); }
 
 #controls {
     display: flex;
@@ -321,7 +338,7 @@ html, body {
 #controls button {
     flex: 1;
     padding: 8px 0;
-    border: 1px solid #444;
+    border: 1px solid var(--color-border);
     border-radius: var(--radius);
     background: transparent;
     color: var(--color-text);
@@ -330,20 +347,10 @@ html, body {
     transition: background 0.15s;
 }
 
-#controls button:hover {
-    background: rgba(255, 255, 255, 0.08);
-}
+#controls button:hover  { background: var(--color-hover); }
+#controls button:active { background: var(--color-active); }
 
-#controls button:active {
-    background: rgba(255, 255, 255, 0.15);
-}
-
-/* 横屏模式下隐藏气泡区（竖屏用弹幕） */
-#bubble-area {
-    display: none;
-}
-
-/* ==================== Danmaku (Portrait) ==================== */
+/* ==================== Danmaku & Bubble ==================== */
 
 #danmaku-layer {
     position: absolute;
@@ -358,8 +365,8 @@ html, body {
     white-space: nowrap;
     font-size: 16px;
     font-weight: 600;
-    color: #fff;
-    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
+    color: var(--color-danmaku);
+    text-shadow: 1px 1px 3px var(--shadow-danmaku);
     animation: danmaku-scroll linear forwards;
     pointer-events: none;
 }
@@ -369,80 +376,13 @@ html, body {
     to   { transform: translateX(calc(-100% - 100vw)); }
 }
 
-/* ==================== Landscape Layout ==================== */
-
-@media (orientation: landscape) and (min-width: 769px) {
-    #app {
-        flex-direction: row;
-    }
-
-    /* 左栏：状态面板 */
-    #status-panel {
-        width: 22%;
-        max-width: 280px;
-        height: 100dvh;
-        flex-direction: column;
-        justify-content: center;
-        gap: 16px;
-        padding: 20px 16px;
-        order: -1;
-    }
-
-    /* 中间：标题 + 棋盘 */
-    #board-area {
-        flex: 1;
-        order: 0;
-    }
-
-    #board {
-        max-width: min(100% - 16px, 100dvh - 80px);
-        max-height: min(100% - 16px, 100dvh - 80px);
-    }
-
-    #header {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: var(--header-h);
-        z-index: 5;
-        background: transparent;
-        justify-content: center;
-    }
-
-    /* 右栏：气泡区 */
-    #bubble-area {
-        display: flex;
-        flex-direction: column;
-        width: 28%;
-        max-width: 320px;
-        height: 100dvh;
-        padding: 16px;
-        background: var(--color-surface);
-        border-left: 1px solid #333;
-    }
-
-    #bubble-list {
-        flex: 1;
-        overflow-y: auto;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-end;
-        gap: 10px;
-        padding-bottom: 8px;
-    }
-
-    /* 横屏隐藏弹幕层 */
-    #danmaku-layer {
-        display: none;
-    }
+#bubble-area {
+    display: none;
 }
-
-/* ==================== Bubble (Landscape) ==================== */
 
 .bubble {
     position: relative;
-    background: #2a2a4a;
+    background: var(--color-bubble);
     color: var(--color-text);
     padding: 10px 14px;
     border-radius: var(--radius);
@@ -461,7 +401,7 @@ html, body {
     height: 0;
     border-top: 6px solid transparent;
     border-bottom: 6px solid transparent;
-    border-right: 8px solid #2a2a4a;
+    border-right: 8px solid var(--color-bubble);
 }
 
 @keyframes bubble-in {
@@ -469,29 +409,7 @@ html, body {
     to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ==================== Responsive Small Screen ==================== */
-
-@media (max-width: 360px) {
-    :root {
-        --header-h: 40px;
-    }
-
-    #header h1 {
-        font-size: 17px;
-    }
-
-    .dot {
-        width: 13px;
-        height: 13px;
-    }
-
-    #controls button {
-        font-size: 13px;
-        padding: 6px 0;
-    }
-}
-
-/* ==================== Game Result Modal ==================== */
+/* ==================== Modal ==================== */
 
 .modal {
     position: fixed;
@@ -499,7 +417,7 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.6);
+    background: var(--color-overlay);
     z-index: 100;
     animation: modal-in 0.3s ease;
 }
@@ -510,13 +428,13 @@ html, body {
 
 .modal-content {
     background: var(--color-surface);
-    border: 1px solid #444;
+    border: 1px solid var(--color-border);
     border-radius: 12px;
     padding: 24px 32px;
     text-align: center;
     min-width: 260px;
     max-width: 90%;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 8px 32px var(--shadow-modal);
 }
 
 .modal-content h2 {
@@ -565,4 +483,74 @@ html, body {
 @keyframes modal-in {
     from { opacity: 0; }
     to   { opacity: 1; }
+}
+
+/* ==================== Responsive ==================== */
+
+@media (orientation: landscape) and (min-width: 769px) {
+    #app {
+        flex-direction: row;
+    }
+
+    #status-panel {
+        width: 22%;
+        max-width: 280px;
+        height: 100dvh;
+        flex-direction: column;
+        justify-content: center;
+        gap: 16px;
+        padding: 20px 16px;
+        order: -1;
+    }
+
+    #board-area {
+        flex: 1;
+        order: 0;
+    }
+
+    #board {
+        max-width: min(100% - 16px, 100dvh - 40px);
+        max-height: min(100% - 16px, 100dvh - 40px);
+    }
+
+    #bubble-area {
+        display: flex;
+        flex-direction: column;
+        width: 28%;
+        max-width: 320px;
+        height: 100dvh;
+        padding: 16px;
+        background: var(--color-surface);
+        border-left: 1px solid var(--color-border-dark);
+    }
+
+    #bubble-list {
+        flex: 1;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        gap: 10px;
+        padding-bottom: 8px;
+    }
+
+    #danmaku-layer {
+        display: none;
+    }
+}
+
+@media (max-width: 360px) {
+    #panel-header h1 {
+        font-size: 14px;
+    }
+
+    .dot {
+        width: 13px;
+        height: 13px;
+    }
+
+    #controls button {
+        font-size: 13px;
+        padding: 6px 0;
+    }
 }

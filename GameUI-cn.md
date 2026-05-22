@@ -33,11 +33,10 @@ index.html          style.css            game.js
 
 ```
 #app (flex 容器)
-├── #header              标题栏 + AI 思考指示器
 ├── #board-area          棋盘 SVG + 弹幕层
 │   ├── #board           SVG 600×600 viewBox
 │   └── #danmaku-layer   竖屏弹幕覆盖层
-├── #status-panel        状态面板（棋子统计 + 阶段 + 设置）
+├── #status-panel        状态面板（标题 + 棋子统计 + 阶段 + 设置）
 ├── #bubble-area         横屏 AI 气泡区
 └── #game-result-modal   游戏结果弹窗
 ```
@@ -48,7 +47,7 @@ index.html          style.css            game.js
 
 | 层 ID | 内容 | 动态/静态 |
 |-------|------|----------|
-| `board-border-layer` | 棋盘底座边框（三层矩形 + 立体滤镜） | 静态 |
+| `board-face` | 棋盘面矩形（fill + stroke + 投影） | 静态 |
 | `board-lines` | 三个嵌套方框 + 四条连接线 | 静态 |
 | `board-dots` | 24 个交点黑色小圆点 | 静态，`initBoard()` 创建 |
 | `board-highlights` | 合法移动目标高亮圆 | 动态，`renderHighlights()` |
@@ -61,7 +60,6 @@ index.html          style.css            game.js
 | 滤镜 ID | 用途 | 引用位置 |
 |---------|------|---------|
 | `#inset-shadow` | 凹陷内阴影（交互 hover + 高亮） | CSS `.board-position:hover`, `.highlight-move` |
-| `#board-border` | 棋盘边框立体感（投影 + 高光 + 暗边） | SVG `#board-border-layer` |
 
 ### 2.4 DOM 元素清单
 
@@ -90,31 +88,67 @@ index.html          style.css            game.js
 
 ### 3.1 CSS 变量（:root）
 
-**主题色：**
+变量按主题切换需求分组，替换主题只需覆盖 `:root` 即可。
+
+**主题色（UI chrome）：**
 | 变量 | 值 | 用途 |
 |------|-----|------|
 | `--color-bg` | `#1a1a2e` | 页面背景 |
 | `--color-surface` | `#16213e` | 面板背景 |
-| `--color-white` | `#f0f0f0` | 白棋 |
-| `--color-black` | `#2d2d2d` | 黑棋 |
-| `--color-accent` | `#4fc3f7` | 强调色（选中、AI 思考） |
 | `--color-text` | `#e0e0e0` | 主文字 |
 | `--color-text-dim` | `#888` | 次要文字 |
+| `--color-accent` | `#4fc3f7` | 强调色（选中、AI 思考） |
+| `--color-border` | `#444` | 按钮/面板边框 |
+| `--color-border-dark` | `#333` | 深色分隔线 |
+| `--color-hover` | `rgba(255,255,255,0.08)` | 按钮 hover |
+| `--color-active` | `rgba(255,255,255,0.15)` | 按钮 active |
+| `--color-overlay` | `rgba(0,0,0,0.6)` | 弹窗遮罩 |
 
-**棋子阴影色板：**
+**棋盘色：**
+| 变量 | 值 | 用途 |
+|------|-----|------|
+| `--color-board-face` | `#e6cb9a` | 棋盘面色 |
+| `--color-board-stroke` | `#b8860b` | 棋盘描边 |
+| `--color-board-line` | `#8B7355` | 棋盘线 |
+| `--color-board-hover` | `#e6cb9a` | 交互区 hover |
+| `--color-board-highlight` | `#e6cb9a` | 合法目标高亮 |
+
+**棋子色：**
+| 变量 | 值 | 用途 |
+|------|-----|------|
+| `--color-white` | `#f0f0f0` | 白子 fill |
+| `--color-white-stroke` | `#e0e0e0` | 白子 stroke |
+| `--color-black` | `#2d2d2d` | 黑子 fill |
+| `--color-black-stroke` | `#222` | 黑子 stroke |
+| `--color-capture` | `#ff8a80` | 可吃子边框 |
+| `--color-capture-glow` | `#f44336` | 可吃子发光 |
+| `--color-thinking` | `#81d4fa` | 思考动画边框色 |
+
+**圆点 / 气泡 / 弹幕色：**
+| 变量 | 值 | 用途 |
+|------|-----|------|
+| `--color-dot-black` | `#555` | 黑子圆点（在手） |
+| `--color-dot-black-board` | `#888` | 黑子圆点（在盘） |
+| `--color-dot-lost` | `#555` | 已失圆点虚线 |
+| `--color-bubble` | `#2a2a4a` | 气泡背景 |
+| `--color-danmaku` | `#fff` | 弹幕文字 |
+
+**阴影色板：**
 | 变量 | 值 | 含义 |
 |------|-----|------|
 | `--shadow-warm` | `rgba(40,30,20,0.3)` | 暖褐外阴影 |
 | `--shadow-black` | `rgba(0,0,0,0.45)` | 黑子外阴影 |
-| `--highlight-white` | `rgba(255,255,255,0.9)` | 白子内高光（左上） |
-| `--highlight-soft` | `rgba(255,255,255,0.35)` | 黑子内高光（左上，较弱） |
-| `--shadow-ambient` | `rgba(0,0,0,0.15)` | 环境暗面（右下） |
+| `--highlight-white` | `rgba(255,255,255,0.9)` | 白子内高光 |
+| `--highlight-soft` | `rgba(255,255,255,0.35)` | 黑子内高光 |
+| `--shadow-ambient` | `rgba(0,0,0,0.15)` | 环境暗面 |
+| `--shadow-board` | `rgba(0,0,0,0.4)` | 棋盘投影 |
+| `--shadow-danmaku` | `rgba(0,0,0,0.7)` | 弹幕文字阴影 |
+| `--shadow-modal` | `rgba(0,0,0,0.5)` | 弹窗投影 |
 
 **尺寸：**
 | 变量 | 值 | 用途 |
 |------|-----|------|
 | `--radius` | `8px` | 通用圆角 |
-| `--header-h` | `48px` | 标题栏高度 |
 
 ### 3.2 棋子样式层次
 
@@ -133,19 +167,22 @@ index.html          style.css            game.js
 3. 暗面（右下偏移，仅白子）— 模拟曲面背光面
 4. 状态发光（选中蓝 / 吃子红）— 叠加在最外层
 
-### 3.3 响应式断点
+### 3.3 AI 思考指示
+
+`.piece-dots.thinking .dot` 激活 `dot-think` 动画（1.2s），9 个圆点依次以 0.1s 间隔边框变色发光，形成跑马灯效果。通过 `setThinking()` 切换 `.thinking` 类控制。
+
+### 3.4 响应式断点
 
 | 条件 | 布局 | AI 台词 |
 |------|------|---------|
-| 竖屏（默认） | 上:标题 → 中:棋盘 → 下:状态面板 | 弹幕（横向滚动） |
-| 横屏 `≥769px` | 左:状态面板 → 中:棋盘+标题 → 右:气泡区 | 气泡（纵向堆叠） |
+| 竖屏（默认） | 上:棋盘 → 下:状态面板（含标题） | 弹幕（横向滚动） |
+| 横屏 `≥769px` | 左:状态面板 → 中:棋盘 → 右:气泡区 | 气泡（纵向堆叠） |
 | 小屏 `≤360px` | 缩小标题栏/圆点/按钮字号 | — |
 
 横屏布局通过 `@media (orientation: landscape) and (min-width: 769px)` 切换：
 - `#app` 从 `flex-direction: column` → `row`
 - `#status-panel` 从底部横条 → 左侧竖栏（`order: -1`）
 - `#bubble-area` 从 `display: none` → 右侧栏
-- `#header` 从正常流 → `position: absolute` 叠加在棋盘上方
 
 ---
 
@@ -309,9 +346,9 @@ doAITurn()
 
 | 走法类型 | 动画 | 时长 |
 |---------|------|------|
+| `place` | 棋子从棋盘上方（y=0）落入目标位置（CSS transition on cx/cy） | 300ms |
 | `move` / `fly` | 棋子从起点滑动到终点（CSS transition on cx/cy） | 300ms |
 | `remove` | 目标棋子闪烁 + 缩小消失（`capture-flash` keyframe） | 600ms |
-| `place` | 无动画，直接渲染 | — |
 
 动画结束后调用 `Engine.makeMove()` 更新引擎状态，再 `renderBoard()` 刷新画面。
 

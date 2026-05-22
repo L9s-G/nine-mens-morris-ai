@@ -8,20 +8,11 @@
 </head>
 <body>
     <div id="app">
-        <!-- 标题栏 -->
-        <header id="header">
-            <h1>Nine Men's Morris</h1>
-            <div id="thinking-indicator" class="hidden">
-                <div class="spinner"></div>
-                <span>AI 思考中...</span>
-            </div>
-        </header>
-
         <!-- 中间区域：棋盘 + 弹幕 -->
         <main id="board-area">
             <svg id="board" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg">
                 <defs>
-                    <!-- 交互层凹陷内阴影：feComposite out 裁剪到圆内 -->
+                    <!-- 交互层凹陷内阴影 -->
                     <filter id="inset-shadow">
                         <feOffset dx="3" dy="3" in="SourceAlpha" result="offset"/>
                         <feGaussianBlur stdDeviation="3" in="offset" result="offset-blur"/>
@@ -30,44 +21,11 @@
                         <feComposite operator="in" in="color" in2="inverse" result="shadow"/>
                         <feComposite operator="over" in="shadow" in2="SourceGraphic"/>
                     </filter>
-
-                    <!-- 棋盘边框立体感滤镜：突起 + 投影 -->
-                    <filter id="board-border" x="-10%" y="-10%" width="120%" height="120%"
-                            color-interpolation-filters="sRGB">
-                        <!-- 底部投影 -->
-                        <feOffset dx="4" dy="6" in="SourceAlpha" result="shadowOffset"/>
-                        <feGaussianBlur stdDeviation="8" in="shadowOffset" result="shadowBlur"/>
-                        <feFlood flood-color="#1a1a2e" flood-opacity="0.5" result="shadowColor"/>
-                        <feComposite in="shadowColor" in2="shadowBlur" operator="in" result="shadow"/>
-                        <!-- 左上高光边缘 -->
-                        <feOffset dx="-2" dy="-2" in="SourceAlpha" result="highlightOffset"/>
-                        <feGaussianBlur stdDeviation="1.5" in="highlightOffset" result="highlightBlur"/>
-                        <feFlood flood-color="#fff" flood-opacity="0.7" result="highlightColor"/>
-                        <feComposite in="highlightColor" in2="highlightBlur" operator="in" result="highlight"/>
-                        <!-- 右下暗边 -->
-                        <feOffset dx="2" dy="2" in="SourceAlpha" result="darkEdgeOffset"/>
-                        <feGaussianBlur stdDeviation="1.5" in="darkEdgeOffset" result="darkEdgeBlur"/>
-                        <feFlood flood-color="#000" flood-opacity="0.3" result="darkEdgeColor"/>
-                        <feComposite in="darkEdgeColor" in2="darkEdgeBlur" operator="in" result="darkEdge"/>
-                        <!-- 合成 -->
-                        <feMerge>
-                            <feMergeNode in="shadow"/>
-                            <feMergeNode in="SourceGraphic"/>
-                            <feMergeNode in="darkEdge"/>
-                            <feMergeNode in="highlight"/>
-                        </feMerge>
-                    </filter>
                 </defs>
-                <!-- 棋盘底座边框（带立体效果） -->
-                <g id="board-border-layer" filter="url(#board-border)">
-                    <rect x="20" y="20" width="560" height="560" rx="10" fill="#8B6914"/>
-                    <rect x="25" y="25" width="550" height="550" rx="8" fill="#b8860b"/>
-                    <rect x="30" y="30" width="540" height="540" rx="6" fill="#d4a86b"/>
-                </g>
-                <!-- 棋盘面（不受滤镜影响） -->
-                <rect x="38" y="38" width="524" height="524" rx="4" fill="#e6cb9a"/>
+                <!-- 棋盘面 -->
+                <rect id="board-face" x="10" y="10" width="580" height="580" rx="6"/>
                 <!-- 棋盘线 -->
-                <g id="board-lines" stroke="#8B7355" stroke-width="3" fill="none">
+                <g id="board-lines">
                     <!-- 外方 (grid 0,0 → 6,6) -->
                     <rect x="50" y="50" width="500" height="500" rx="4"/>
                     <!-- 中方 (grid 1,1 → 5,5) -->
@@ -97,6 +55,9 @@
 
         <!-- 状态区域 -->
         <aside id="status-panel">
+            <div id="panel-header">
+                <h1>Nine Men's Morris</h1>
+            </div>
             <div id="player-status">
                 <div class="player-row" id="status-opponent">
                     <span class="player-label" id="label-opponent">先手</span>

@@ -228,14 +228,23 @@ const Game = (() => {
     }
 
     async function animateAndExecute(move) {
-        // 走子动画：先滑动再执行引擎
-        if (move.type === 'move' || move.type === 'fly') {
-            const srcPiece = svgPieces.querySelector(`[data-pos="${move.from}"]`);
-            if (srcPiece) srcPiece.style.display = 'none';
-
+        // 放置 / 走子 / 飞行：从起点滑动到终点
+        if (move.type === 'place' || move.type === 'move' || move.type === 'fly') {
             const isWhite = move.player === E.TYPE_OPPONENT;
-            const { x: x1, y: y1 } = posToSvg(move.from);
             const { x: x2, y: y2 } = posToSvg(move.to);
+
+            let x1, y1;
+            if (move.type === 'place') {
+                // 从棋盘上方落入
+                x1 = x2;
+                y1 = 0;
+            } else {
+                const srcPiece = svgPieces.querySelector(`[data-pos="${move.from}"]`);
+                if (srcPiece) srcPiece.style.display = 'none';
+                const src = posToSvg(move.from);
+                x1 = src.x;
+                y1 = src.y;
+            }
 
             const anim = createSvgElement('circle', {
                 cx: x1, cy: y1, r: 22,
@@ -580,7 +589,7 @@ const Game = (() => {
     // ==================== 工具 ====================
 
     function setThinking(on) {
-        document.getElementById('thinking-indicator').classList.toggle('hidden', !on);
+        document.getElementById('dots-ai').classList.toggle('thinking', on);
     }
 
     function sleep(ms) {
