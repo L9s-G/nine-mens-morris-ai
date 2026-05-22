@@ -1,10 +1,12 @@
 // 性能测试：不同深度的搜索耗时与节点数
 const fs = require('fs');
 const vm = require('vm');
+const path = require('path');
+const srcDir = path.resolve(__dirname, '..');
 
-const engineCode = fs.readFileSync('./engine.js', 'utf-8').replace('const Engine = (() => {', 'Engine = (() => {');
-const strategyCode = fs.readFileSync('./strategy.js', 'utf-8').replace('const Strategy = (() => {', 'Strategy = (() => {');
-const aiCode = fs.readFileSync('./ai.js', 'utf-8').replace('const AI = (() => {', 'AI = (() => {');
+const engineCode = fs.readFileSync(path.join(srcDir, 'engine.js'), 'utf-8').replace('const Engine = (() => {', 'Engine = (() => {');
+const strategyCode = fs.readFileSync(path.join(srcDir, 'strategy.js'), 'utf-8').replace('const Strategy = (() => {', 'Strategy = (() => {');
+const aiCode = fs.readFileSync(path.join(srcDir, 'ai.js'), 'utf-8').replace('const AI = (() => {', 'AI = (() => {');
 
 const sandbox = { console, Engine: null, Strategy: null, AI: null };
 vm.createContext(sandbox);
@@ -38,15 +40,15 @@ Engine.init({ firstPlayer: Engine.TYPE_AI });
 
 // 放置 18 个棋子（每方 9 个）
 const placementMoves = [
-    [Engine.TYPE_AI, 0], [Engine.TYPE_HUMAN, 1],
-    [Engine.TYPE_AI, 2], [Engine.TYPE_HUMAN, 3],
-    [Engine.TYPE_AI, 4], [Engine.TYPE_HUMAN, 5],
-    [Engine.TYPE_AI, 6], [Engine.TYPE_HUMAN, 7],
-    [Engine.TYPE_AI, 8], [Engine.TYPE_HUMAN, 9],
-    [Engine.TYPE_AI, 10], [Engine.TYPE_HUMAN, 11],
-    [Engine.TYPE_AI, 12], [Engine.TYPE_HUMAN, 13],
-    [Engine.TYPE_AI, 14], [Engine.TYPE_HUMAN, 15],
-    [Engine.TYPE_AI, 16], [Engine.TYPE_HUMAN, 17],
+    [Engine.TYPE_AI, 0], [Engine.TYPE_OPPONENT, 1],
+    [Engine.TYPE_AI, 2], [Engine.TYPE_OPPONENT, 3],
+    [Engine.TYPE_AI, 4], [Engine.TYPE_OPPONENT, 5],
+    [Engine.TYPE_AI, 6], [Engine.TYPE_OPPONENT, 7],
+    [Engine.TYPE_AI, 8], [Engine.TYPE_OPPONENT, 9],
+    [Engine.TYPE_AI, 10], [Engine.TYPE_OPPONENT, 11],
+    [Engine.TYPE_AI, 12], [Engine.TYPE_OPPONENT, 13],
+    [Engine.TYPE_AI, 14], [Engine.TYPE_OPPONENT, 15],
+    [Engine.TYPE_AI, 16], [Engine.TYPE_OPPONENT, 17],
 ];
 
 for (const [player, pos] of placementMoves) {

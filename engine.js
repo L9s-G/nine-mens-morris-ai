@@ -11,12 +11,12 @@
 
 const Engine = (() => {
     // ==================== 常量定义 ====================
-    const TYPE_HUMAN = 1;   // 白棋
+    const TYPE_OPPONENT = 1;   // 白棋
     const TYPE_AI    = 2;   // 黑棋
     const BOARD_SIZE = 24;
 
     // 每个点的邻居关系（移动时使用）
-const NEIGHBORS = [
+    const NEIGHBORS = [
         [1, 9],           // 0
         [0, 2, 4],        // 1
         [1, 14],          // 2
@@ -30,7 +30,7 @@ const NEIGHBORS = [
         [3, 9, 11, 18],   // 10
         [6, 10, 15],      // 11
         [8, 13, 17],      // 12
-        [5, 12, 14, 20],      // 13
+        [5, 12, 14, 20],  // 13
         [2, 13, 23],      // 14
         [11, 16],         // 15
         [15, 17, 19],     // 16
@@ -54,19 +54,19 @@ const NEIGHBORS = [
 
     function createInitialState(config = {}) {
         const {
-            firstPlayer = TYPE_HUMAN,
-            humanHand = 9,
+            firstPlayer = TYPE_OPPONENT,
+            opponentHand = 9,
             aiHand = 9
         } = config;
 
         return {
-            board: new Array(BOARD_SIZE).fill(null),   // null | TYPE_HUMAN | TYPE_AI
+            board: new Array(BOARD_SIZE).fill(null),   // null | TYPE_OPPONENT | TYPE_AI
             
             currentPlayer: firstPlayer,                // 当前玩家
             millMove: false,                           // 是否处于吃子阶段（刚形成 Mill）
             
-            playerHuman: {
-                piecesOnHand: humanHand,
+            playerOpponent: {
+                piecesOnHand: opponentHand,
                 piecesOnBoard: 0,
                 piecesLost: 0
             },
@@ -84,9 +84,9 @@ const NEIGHBORS = [
 
     // ==================== 工具函数 ====================
     
-    /** 根据玩家类型（TYPE_HUMAN/TYPE_AI）返回对应的玩家的棋子数 */
+    /** 根据玩家类型返回对应的玩家的棋子数 */
     function getPlayer(playerType) {
-        return playerType === TYPE_HUMAN ? state.playerHuman : state.playerAI;
+        return playerType === TYPE_OPPONENT ? state.playerOpponent : state.playerAI;
     }
 
     function isInMill(board, pos, player) {
@@ -121,13 +121,70 @@ const NEIGHBORS = [
 
     /** 重置游戏（保留上次先手设置） */
     function reset() {
-        const currentFirst = state ? state.currentPlayer : TYPE_HUMAN;
+        const currentFirst = state ? state.currentPlayer : TYPE_OPPONENT;
         return init({ firstPlayer: currentFirst });
     }
 
     /** 获取当前状态的深拷贝 */
     function getState() {
         return JSON.parse(JSON.stringify(state));
+    }
+
+    /** 获取状态引用（仅供读取，禁止修改） */
+    function getRawState() {
+        return state;
+    }
+
+    /** 获取棋盘浅拷贝（仅供读取，避免 getState 的全量深拷贝开销） */
+    function getBoard() {
+        return state.board.slice();
+    }
+
+    /** 轻量查询：游戏是否结束（无深拷贝） */
+    function isGameOver() {
+        return state.gameOver;
+    }
+
+    /** 轻量查询：获胜方（无深拷贝） */
+    function getWinner() {
+        return state.winner;
+    }
+
+    /**
+     * 计算玩家的有效机动性（可移动到的空位数）
+     * 比 generateLegalMoves 更轻量：不生成走法对象，不吃子展开
+     */
+    function countMobility(player) {
+        const p = getPlayer(player);
+        const isFlying = p.piecesOnHand === 0 && p.piecesOnBoard === 3;
+        const isPlacement = p.piecesOnHand > 0;
+        const board = state.board;
+
+        // 放置阶段：空位数即机动性
+        if (isPlacement) {
+            let count = 0;
+            for (let i = 0; i < BOARD_SIZE; i++) {
+                if (board[i] === null) count++;
+            }
+            return count;
+        }
+
+        // 走子/飞行阶段：每个棋子可到达的空位数
+        let count = 0;
+        for (let i = 0; i < BOARD_SIZE; i++) {
+            if (board[i] !== player) continue;
+            if (isFlying) {
+                for (let j = 0; j < BOARD_SIZE; j++) {
+                    if (board[j] === null) count++;
+                }
+            } else {
+                const neighbors = NEIGHBORS[i];
+                for (let j = 0; j < neighbors.length; j++) {
+                    if (board[neighbors[j]] === null) count++;
+                }
+            }
+        }
+        return count;
     }
 
     // ==================== MILL-FEN（棋盘快照） ====================
@@ -138,37 +195,57 @@ const NEIGHBORS = [
         for (let i = 0; i < BOARD_SIZE; i++) {
             boardStr += state.board[i] === null ? '0' : state.board[i];
         }
-        const white = `${state.playerHuman.piecesOnHand}${state.playerHuman.piecesOnBoard}${state.playerHuman.piecesLost}`;
+        const white = `${state.playerOpponent.piecesOnHand}${state.playerOpponent.piecesOnBoard}${state.playerOpponent.piecesLost}`;
         const black = `${state.playerAI.piecesOnHand}${state.playerAI.piecesOnBoard}${state.playerAI.piecesLost}`;
         
         return `${boardStr}/${state.currentPlayer}/${white}/${black}/${state.millMove ? 1 : 0}`;
     }
 
-    /** 从 FEN 字符串恢复局面 */
+    /** 从 FEN 字符串恢复局面（带防御性校验） */
     function fromFen(fen) {
-        const parts = fen.split('/');
-        if (parts.length !== 5) throw new Error("Invalid MILL-FEN");
+        if (typeof fen !== 'string') throw new Error("Invalid MILL-FEN: expected string");
 
+        const parts = fen.split('/');
+        if (parts.length !== 5) throw new Error("Invalid MILL-FEN: expected 5 parts");
+
+        // 棋盘：24 位，每位 0/1/2
         const boardChars = parts[0];
         if (boardChars.length !== BOARD_SIZE) throw new Error("Invalid MILL-FEN: board length must be " + BOARD_SIZE);
         const board = new Array(BOARD_SIZE);
         for (let i = 0; i < BOARD_SIZE; i++) {
-            board[i] = boardChars[i] === '0' ? null : Number(boardChars[i]);
+            const ch = boardChars[i];
+            if (ch !== '0' && ch !== '1' && ch !== '2') throw new Error("Invalid MILL-FEN: invalid board char at " + i);
+            board[i] = ch === '0' ? null : Number(ch);
         }
+
+        // 当前玩家：1 或 2
+        const currentPlayer = Number(parts[1]);
+        if (currentPlayer !== TYPE_OPPONENT && currentPlayer !== TYPE_AI) throw new Error("Invalid MILL-FEN: currentPlayer must be 1 or 2");
+
+        // 棋子数：每位 0-9，总和应为 9（白/黑各 9 子）
+        function parsePlayer(str, label) {
+            if (str.length !== 3) throw new Error("Invalid MILL-FEN: " + label + " must be 3 digits");
+            const vals = [];
+            for (let i = 0; i < 3; i++) {
+                const n = Number(str[i]);
+                if (!Number.isInteger(n) || n < 0 || n > 9) throw new Error("Invalid MILL-FEN: " + label + " digit " + i + " must be 0-9");
+                vals.push(n);
+            }
+            if (vals[0] + vals[1] + vals[2] !== 9) throw new Error("Invalid MILL-FEN: " + label + " pieces must sum to 9");
+            return { piecesOnHand: vals[0], piecesOnBoard: vals[1], piecesLost: vals[2] };
+        }
+
+        const opponent = parsePlayer(parts[2], 'opponent');
+        const ai = parsePlayer(parts[3], 'ai');
+
+        // millMove 标志
+        if (parts[4] !== '0' && parts[4] !== '1') throw new Error("Invalid MILL-FEN: millMove must be 0 or 1");
 
         state = {
             board,
-            currentPlayer: Number(parts[1]),
-            playerHuman: {
-                piecesOnHand: Number(parts[2][0]),
-                piecesOnBoard: Number(parts[2][1]),
-                piecesLost: Number(parts[2][2])
-            },
-            playerAI: {
-                piecesOnHand: Number(parts[3][0]),
-                piecesOnBoard: Number(parts[3][1]),
-                piecesLost: Number(parts[3][2])
-            },
+            currentPlayer,
+            playerOpponent: opponent,
+            playerAI: ai,
             millMove: parts[4] === '1',
             moveHistory: [],
             gameOver: false,
@@ -182,7 +259,7 @@ const NEIGHBORS = [
     /** 生成当前玩家所有合法走法 */
     function generateLegalMoves(player) {
         const moves = [];
-        const opp = player === TYPE_HUMAN ? TYPE_AI : TYPE_HUMAN;
+        const opp = player === TYPE_OPPONENT ? TYPE_AI : TYPE_OPPONENT;
         const p = getPlayer(player);
         const isPlacement = p.piecesOnHand > 0;
         const isFlying = !isPlacement && p.piecesOnBoard === 3;
@@ -312,7 +389,7 @@ const NEIGHBORS = [
         if (!move) return null;
 
         const { player, from, to, remove, type } = move;
-        const opp = player === TYPE_HUMAN ? TYPE_AI : TYPE_HUMAN;
+        const opp = player === TYPE_OPPONENT ? TYPE_AI : TYPE_OPPONENT;
         const p = getPlayer(player);
         const oppP = getPlayer(opp);
 
@@ -379,7 +456,7 @@ const NEIGHBORS = [
 
     function checkGameOver() {
         const current = getPlayer(state.currentPlayer);
-        const opponent = state.currentPlayer === TYPE_HUMAN ? TYPE_AI : TYPE_HUMAN;
+        const opponent = state.currentPlayer === TYPE_OPPONENT ? TYPE_AI : TYPE_OPPONENT;
 
         // 当前玩家场上棋子少于3个且手上无棋子，对手获胜
         if (current.piecesOnBoard < 3 && current.piecesOnHand === 0) {
@@ -400,7 +477,7 @@ const NEIGHBORS = [
 
         const entry = state.moveHistory.pop();
         const { player, type, from, to, remove, removedFrom } = entry;
-        const opp = player === TYPE_HUMAN ? TYPE_AI : TYPE_HUMAN;
+        const opp = player === TYPE_OPPONENT ? TYPE_AI : TYPE_OPPONENT;
         const p = getPlayer(player);
         const oppP = getPlayer(opp);
 
@@ -447,7 +524,7 @@ const NEIGHBORS = [
 
     // ==================== 公开接口 ====================
     return {
-        TYPE_HUMAN,
+        TYPE_OPPONENT,
         TYPE_AI,
         BOARD_SIZE,
         NEIGHBORS,
@@ -456,17 +533,21 @@ const NEIGHBORS = [
         init,
         reset,
         getState,
+        getRawState,
+        getBoard,
+        isGameOver,
+        getWinner,
         toFen,
         fromFen,
 
         generateLegalMoves,
+        countMobility,
         makeMove,
         undoMove,
         countMills,
         
         // 调试辅助
         debug: {
-            getRawState: () => state,
             logFen: () => console.log("Current FEN:", toFen())
         }
     };

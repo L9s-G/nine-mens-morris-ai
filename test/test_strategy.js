@@ -1,10 +1,12 @@
 // Strategy.js 功能测试
 const fs = require('fs');
 const vm = require('vm');
+const path = require('path');
+const srcDir = path.resolve(__dirname, '..');
 
 // 加载 Engine 和 Strategy
-const engineCode = fs.readFileSync('./engine.js', 'utf-8').replace('const Engine = (() => {', 'Engine = (() => {');
-const strategyCode = fs.readFileSync('./strategy.js', 'utf-8').replace('const Strategy = (() => {', 'Strategy = (() => {');
+const engineCode = fs.readFileSync(path.join(srcDir, 'engine.js'), 'utf-8').replace('const Engine = (() => {', 'Engine = (() => {');
+const strategyCode = fs.readFileSync(path.join(srcDir, 'strategy.js'), 'utf-8').replace('const Strategy = (() => {', 'Strategy = (() => {');
 
 const sandbox = { console, Engine: null, Strategy: null };
 vm.createContext(sandbox);
@@ -56,13 +58,13 @@ for (let i = 1; i < report.suggestedMoves.length; i++) {
 assert(sorted, "建议走法应按评分降序排列");
 
 // --- Test 4: 机动性分析 ---
-const mobility = Strategy.calculateEffectiveMobility(Engine.TYPE_HUMAN);
+const mobility = Strategy.calculateEffectiveMobility(Engine.TYPE_OPPONENT);
 assert(mobility.total > 0, "初始应有合法走法");
 assert(mobility.safe > 0, "初始应有安全走法");
 assert(mobility.safe <= mobility.total, "安全走法不应超过总走法");
 
 // --- Test 5: 阵型张力 ---
-const tension = Strategy.analyzeFormationTension(Engine.TYPE_HUMAN);
+const tension = Strategy.analyzeFormationTension(Engine.TYPE_OPPONENT);
 assert(typeof tension.playerThreats === 'number', "playerThreats 应为数字");
 assert(typeof tension.oppThreats === 'number', "oppThreats 应为数字");
 assert(typeof tension.tensionScore === 'number', "tensionScore 应为数字");
@@ -70,7 +72,7 @@ assert(typeof tension.tensionScore === 'number', "tensionScore 应为数字");
 // --- Test 6: 走一步后再分析 ---
 Engine.init();
 // 放一个棋子到位置 4（中心枢纽）
-Engine.makeMove({ player: Engine.TYPE_HUMAN, type: 'place', from: -1, to: 4, remove: null });
+Engine.makeMove({ player: Engine.TYPE_OPPONENT, type: 'place', from: -1, to: 4, remove: null });
 const report2 = Strategy.generateReport();
 assert(report2.context.phase === 'PLACEMENT', "走一步后仍为 PLACEMENT");
 assert(report2.suggestedMoves.length > 0, "走一步后应有建议走法");
@@ -78,10 +80,10 @@ assert(report2.suggestedMoves.length > 0, "走一步后应有建议走法");
 // --- Test 7: 形成磨坊的走法应有 MILL 标签 ---
 Engine.init();
 // 手动构造一个即将成行的局面
-// HUMAN: 位置 0, 1 → 放到 2 可成行
-Engine.makeMove({ player: Engine.TYPE_HUMAN, type: 'place', from: -1, to: 0, remove: null });
+// 对手: 位置 0, 1 → 放到 2 可成行
+Engine.makeMove({ player: Engine.TYPE_OPPONENT, type: 'place', from: -1, to: 0, remove: null });
 Engine.makeMove({ player: Engine.TYPE_AI, type: 'place', from: -1, to: 5, remove: null });
-Engine.makeMove({ player: Engine.TYPE_HUMAN, type: 'place', from: -1, to: 1, remove: null });
+Engine.makeMove({ player: Engine.TYPE_OPPONENT, type: 'place', from: -1, to: 1, remove: null });
 Engine.makeMove({ player: Engine.TYPE_AI, type: 'place', from: -1, to: 6, remove: null });
 
 const report3 = Strategy.generateReport();

@@ -22,14 +22,13 @@ const AI = (() => {
 
     // 评估权重
     const WEIGHTS = {
-        material:  150,  // 每多一子的分值（大幅提高以激励吃子）
+        material:  150,  // 每多一子的分值
         mobility:   2,   // 每个安全移动的分值
-        threat:    10,   // 每个潜在磨坊的分值
+        threat:    55,   // 每个潜在磨坊的分值（接近 mill+吃子 的一半，确保浅层搜索也堵截）
         fork:      20,   // 每个叉子的分值
         mill:      40,   // 形成磨坊的分值
-        losePiece: -200, // 失去一子的惩罚（大幅提高以激励防守）
-        nearMill:  15,   // 差一步成行的额外奖励
-        opponentNearMill: -20 // 对手差一步成行的惩罚
+        nearMill:  30,   // 差一步成行的额外奖励
+        opponentNearMill: -40 // 对手差一步成行的惩罚
     };
 
     // ==================== 性能模式配置 ====================
@@ -73,55 +72,49 @@ const AI = (() => {
      * 计算阶段因子（用于平滑权重过渡）
      * 返回 0~1：0 = 放置早期，1 = 放置末期/走子阶段
      */
-    function getPhaseFactor() {
-        const state = E.getState();
-        const maxHand = Math.max(state.playerAI.piecesOnHand, state.playerHuman.piecesOnHand);
-        // 手中棋子越少，因子越接近 1
-        return 1 - (maxHand / 9);
-    }
-
     /**
      * 对当前局面进行静态评估
-     * 正值表示 AI 优势，负值表示 HUMAN 优势
+     * 正值表示 AI 优势，负值表示对手优势
      */
     function evaluatePosition() {
-        const state = E.getState();
+        const state = E.getRawState();
         const ai = state.playerAI;
-        const human = state.playerHuman;
+        const opponent = state.playerOpponent;
 
         // 终局判断
         if (state.gameOver) {
             if (state.winner === E.TYPE_AI) return 10000;
-            if (state.winner === E.TYPE_HUMAN) return -10000;
+            if (state.winner === E.TYPE_OPPONENT) return -10000;
         }
 
         // 平滑权重过渡：放置末期逐渐增加机动性权重
-        const phaseFactor = getPhaseFactor();
+        const phaseFactor = 1 - (Math.max(ai.piecesOnHand, opponent.piecesOnHand) / 9);
         const materialW = WEIGHTS.material * (1 - phaseFactor * 0.3);  // 放置末期材料权重降低 30%
         const mobilityW = WEIGHTS.mobility * (1 + phaseFactor * 2);     // 放置末期机动性权重提升 3 倍
 
         // 材料差
-        const materialDiff = (ai.piecesOnBoard + ai.piecesOnHand) - (human.piecesOnBoard + human.piecesOnHand);
+        const materialDiff = (ai.piecesOnBoard + ai.piecesOnHand) - (opponent.piecesOnBoard + opponent.piecesOnHand);
 
-        // 机动性差
-        const aiMoves = E.generateLegalMoves(E.TYPE_AI).length;
-        const humanMoves = E.generateLegalMoves(E.TYPE_HUMAN).length;
-        const mobilityDiff = aiMoves - humanMoves;
+        // 机动性差（仅计算可移动到的空位数，不吃子展开）
+        const mobilityDiff = E.countMobility(E.TYPE_AI) - E.countMobility(E.TYPE_OPPONENT);
 
         // 阵型张力
         const aiTension = S.analyzeFormationTension(E.TYPE_AI);
-        const humanTension = S.analyzeFormationTension(E.TYPE_HUMAN);
-        const threatDiff = aiTension.playerThreats - humanTension.playerThreats;
-        const forkDiff = aiTension.playerForks - humanTension.playerForks;
+        const opponentTension = S.analyzeFormationTension(E.TYPE_OPPONENT);
+        const threatDiff = aiTension.playerThreats - opponentTension.playerThreats;
+        const forkDiff = aiTension.playerForks - opponentTension.playerForks;
+
+        // near mill 直接奖惩（与 threatDiff 叠加，强化防守意识）
+        const nearMillBonus = WEIGHTS.nearMill * aiTension.playerThreats + WEIGHTS.opponentNearMill * opponentTension.playerThreats;
 
         // 磨坊数
         const aiMills = E.countMills(E.TYPE_AI);
-        const humanMills = E.countMills(E.TYPE_HUMAN);
-        const millDiff = aiMills - humanMills;
+        const opponentMills = E.countMills(E.TYPE_OPPONENT);
+        const millDiff = aiMills - opponentMills;
 
         // 对手接近飞行模式的惩罚
         let flyThreat = 0;
-        if (human.piecesOnBoard === 3 && human.piecesOnHand === 0) flyThreat += 50;
+        if (opponent.piecesOnBoard === 3 && opponent.piecesOnHand === 0) flyThreat += 50;
         if (ai.piecesOnBoard === 3 && ai.piecesOnHand === 0) flyThreat -= 50;
 
         // 绝望修正：大幅落后时寻找陷阱机会
@@ -136,6 +129,7 @@ const AI = (() => {
             WEIGHTS.threat * threatDiff +
             WEIGHTS.fork * forkDiff +
             WEIGHTS.mill * millDiff +
+            nearMillBonus +
             flyThreat +
             desperationBonus
         );
@@ -160,14 +154,12 @@ const AI = (() => {
             return evaluatePosition();
         }
 
-        const state = E.getState();
-
         // 终止条件：游戏结束或深度为 0
-        if (state.gameOver || depth === 0 || timeLimitReached) {
+        if (E.isGameOver() || depth === 0 || timeLimitReached) {
             return evaluatePosition();
         }
 
-        const currentPlayer = isMaximizing ? E.TYPE_AI : E.TYPE_HUMAN;
+        const currentPlayer = isMaximizing ? E.TYPE_AI : E.TYPE_OPPONENT;
         const moves = E.generateLegalMoves(currentPlayer);
 
         // 无合法走法 = 输
@@ -231,9 +223,10 @@ const AI = (() => {
         let bonus = 0;
 
         // 通用加成（所有模式下都生效）
-        if (tags.includes('NEAR_MILL')) bonus += 40;  // 差一步成行
+        if (tags.includes('NEAR_MILL')) bonus += WEIGHTS.nearMill;  // 差一步成行
         if (tags.includes('MILL')) bonus += 200;       // 形成磨坊（极大鼓励）
         if (tags.includes('CAPTURE')) bonus += 150;    // 吃子（极大鼓励）
+        if (tags.includes('BLOCK')) bonus += 100;      // 阻止对方成行（高优先级）
 
         switch (mode) {
             case MODE_EXPANSION:
@@ -243,7 +236,6 @@ const AI = (() => {
             case MODE_SUPPRESSION:
                 if (tags.includes('SQUEEZE')) bonus += 20;
                 if (tags.includes('ANTI_FLYING')) bonus += 15;
-                if (tags.includes('BLOCK')) bonus += 10;
                 break;
             case MODE_DECISIVE:
                 if (tags.includes('ATTACK')) bonus += 15;
@@ -269,7 +261,7 @@ const AI = (() => {
         const dDeep = deepDepth || currentConfig.depth;
 
         // 浅层评估 (D=0 = 静态评估，几乎零开销)
-        const r1 = E.makeMove(move);
+        E.makeMove(move);
         const score_shallow = evaluatePosition();
         E.undoMove();
 
@@ -314,15 +306,8 @@ const AI = (() => {
     }
 
     /**
-     * 兼容旧接口：top 分相同随机选择
-     */
-    function pickWithTieBreak(sorted) {
-        return pickWithWeightedRandom(sorted, 0.1); // 极低温度 = 近似确定性
-    }
-
-    /**
      * 为指定玩家选择最佳走法（支持双人对战）
-     * @param {number} player - TYPE_HUMAN 或 TYPE_AI
+     * @param {number} player - TYPE_OPPONENT 或 TYPE_AI
      * @param {number} [depth] - 搜索深度（默认使用当前配置）
      * @returns {{ move: object, score: number, mode: string, report: object, stats: object }}
      */
@@ -340,6 +325,20 @@ const AI = (() => {
 
         // 动态深度分配：根据策略模式调整搜索深度
         if (!depth) { // 仅在未指定深度时动态调整
+            const rawState = E.getRawState();
+            const playerData = isAI ? rawState.playerAI : rawState.playerOpponent;
+            const hand = playerData.piecesOnHand;
+
+            // 放置阶段：分支因子高，限制深度，后期平滑过渡到预设值
+            if (report.context.phase === 'PLACEMENT' && d > 2) {
+                const d_min = 2;
+                if (hand >= 6) {
+                    d = d_min;
+                } else if (hand >= 2) {
+                    d = Math.round(d_min + (d - d_min) * ((6 - hand) / 4));
+                }
+            }
+
             if (mode === MODE_SUPPRESSION) {
                 d = Math.min(d + 1, 6); // 压制模式：分支因子小，+1 层
             } else if (mode === MODE_DECISIVE && report.context.phase === 'FLYING') {
@@ -363,13 +362,9 @@ const AI = (() => {
             const move = moves[i];
 
             const result = E.makeMove(move);
-            // 根据玩家视角决定 minimax 方向
-            // AI 视角：AI 是 maximizing；HUMAN 视角：HUMAN 是 maximizing
+            // minimax 返回 AI 视角分数：AI 取原值，OPPONENT 取反
             const nextIsMax = result.formedMill ? isAI : !isAI;
-            // 从当前玩家视角评估（正分=对当前玩家有利）
-            const rawScore = isAI
-                ? -minimax(d - 1, -Infinity, Infinity, nextIsMax)
-                : minimax(d - 1, -Infinity, Infinity, nextIsMax);
+            const rawScore = isAI ? minimax(d - 1, -Infinity, Infinity, nextIsMax) : -minimax(d - 1, -Infinity, Infinity, nextIsMax);
             E.undoMove();
 
             const reportEntry = report.suggestedMoves.find(

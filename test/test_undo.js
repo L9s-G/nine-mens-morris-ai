@@ -5,9 +5,11 @@
 
 const fs = require('fs');
 const vm = require('vm');
+const path = require('path');
+const srcDir = path.resolve(__dirname, '..');
 
 // 加载 engine.js（浏览器 IIFE 格式，用 vm 执行）
-const code = fs.readFileSync('./engine.js', 'utf-8');
+const code = fs.readFileSync(path.join(srcDir, 'engine.js'), 'utf-8');
 const sandbox = { console, Engine: null };
 vm.createContext(sandbox);
 // 将 const Engine 改为赋值给 sandbox.Engine
@@ -21,7 +23,7 @@ let failed = 0;
 
 for (let test = 0; test < N; test++) {
     // 随机选择先手
-    const firstPlayer = Math.random() < 0.5 ? Engine.TYPE_HUMAN : Engine.TYPE_AI;
+    const firstPlayer = Math.random() < 0.5 ? Engine.TYPE_OPPONENT : Engine.TYPE_AI;
     Engine.init({ firstPlayer });
 
     const initialFen = Engine.toFen();

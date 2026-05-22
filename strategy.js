@@ -19,7 +19,7 @@ const Strategy = (() => {
      * @returns {{ total: number, safe: number }}
      */
     function calculateEffectiveMobility(player) {
-        const opp = player === E.TYPE_HUMAN ? E.TYPE_AI : E.TYPE_HUMAN;
+        const opp = player === E.TYPE_OPPONENT ? E.TYPE_AI : E.TYPE_OPPONENT;
         const moves = E.generateLegalMoves(player);
         let safe = 0;
 
@@ -51,8 +51,8 @@ const Strategy = (() => {
      * 识别潜在磨坊（2子+1空）和双重威胁（叉子）
      */
     function analyzeFormationTension(player) {
-        const opp = player === E.TYPE_HUMAN ? E.TYPE_AI : E.TYPE_HUMAN;
-        const board = E.getState().board;
+        const opp = player === E.TYPE_OPPONENT ? E.TYPE_AI : E.TYPE_OPPONENT;
+        const board = E.getBoard();
 
         let playerThreats = 0;
         let oppThreats = 0;
@@ -107,7 +107,7 @@ const Strategy = (() => {
      * 评估单个走法，返回评分、标签、风险
      */
     function evaluateMove(move, player) {
-        const opp = player === E.TYPE_HUMAN ? E.TYPE_AI : E.TYPE_HUMAN;
+        const opp = player === E.TYPE_OPPONENT ? E.TYPE_AI : E.TYPE_OPPONENT;
         let score = 0;
         const tags = [];
         let risk = 'low';
@@ -117,6 +117,20 @@ const Strategy = (() => {
         let oppMillsBefore = 0;
         for (let i = 0; i < oppMovesBefore.length; i++) {
             if (oppMovesBefore[i].remove !== null) oppMillsBefore++;
+        }
+
+        // 占据高联通性位置（Hub）— 走前检测目标位置
+        let emptyNeighbors = 0;
+        if (move.type !== 'remove') {
+            const neighbors = E.NEIGHBORS[move.to];
+            const board = E.getBoard();
+            for (let i = 0; i < neighbors.length; i++) {
+                if (board[neighbors[i]] === null) emptyNeighbors++;
+            }
+            if (emptyNeighbors >= 2) {
+                score += 10;
+                tags.push('HUB_CONTROL');
+            }
         }
 
         // --- 执行走法 ---
@@ -144,6 +158,41 @@ const Strategy = (() => {
         // 检查是否安全（对方不能立即成行）
         let isSafe = (oppMillsAfter === 0);
 
+        // 差一步成行检测：走法执行后，检查是否创建了"2子+1空"的潜在磨坊
+        if (move.type !== 'remove') {
+            const boardAfter = E.getBoard();
+            const pos = move.to;
+            for (let i = 0; i < E.MILLS.length; i++) {
+                const mill = E.MILLS[i];
+                if (mill[0] !== pos && mill[1] !== pos && mill[2] !== pos) continue;
+
+                let myCount = 0;
+                let emptyCount = 0;
+                for (let j = 0; j < 3; j++) {
+                    if (boardAfter[mill[j]] === player) myCount++;
+                    else if (boardAfter[mill[j]] === null) emptyCount++;
+                }
+                if (myCount === 2 && emptyCount === 1) {
+                    score += 30;
+                    tags.push('NEAR_MILL');
+                    break;
+                }
+            }
+        }
+
+        // 压制对方机动性（复用走后结果）
+        if (oppMovesAfter.length <= 3) {
+            score += 15;
+            tags.push('SQUEEZE');
+        }
+
+        // 预防飞行模式
+        const oppRaw = E.getRawState();
+        const oppData = player === E.TYPE_OPPONENT ? oppRaw.playerAI : oppRaw.playerOpponent;
+        if (oppData.piecesOnBoard <= 4 && oppData.piecesOnHand === 0) {
+            tags.push('ANTI_FLYING');
+        }
+
         E.undoMove();
 
         // --- 走后分析完毕，继续评分 ---
@@ -161,58 +210,6 @@ const Strategy = (() => {
             tags.push('RISKY');
         }
 
-        // 占据高联通性位置（Hub）
-        if (move.type !== 'remove') {
-            const neighbors = E.NEIGHBORS[move.to];
-            const board = E.getState().board;
-            let emptyNeighbors = 0;
-            for (let i = 0; i < neighbors.length; i++) {
-                if (board[neighbors[i]] === null) emptyNeighbors++;
-            }
-            if (emptyNeighbors >= 2) {
-                score += 10;
-                tags.push('HUB_CONTROL');
-            }
-        }
-
-        // 差一步成行检测：走法执行后，检查是否创建了"2子+1空"的潜在磨坊
-        if (move.type !== 'remove') {
-            const boardAfter = E.getState().board;
-            const pos = move.to;
-            // 检查所有包含该位置的磨坊线
-            for (let i = 0; i < E.MILLS.length; i++) {
-                const mill = E.MILLS[i];
-                if (mill[0] !== pos && mill[1] !== pos && mill[2] !== pos) continue;
-
-                let myCount = 0;
-                let emptyCount = 0;
-                for (let j = 0; j < 3; j++) {
-                    if (boardAfter[mill[j]] === player) myCount++;
-                    else if (boardAfter[mill[j]] === null) emptyCount++;
-                }
-                // 2子+1空 = 差一步成行
-                if (myCount === 2 && emptyCount === 1) {
-                    score += 30;
-                    tags.push('NEAR_MILL');
-                    break; // 只计一次
-                }
-            }
-        }
-
-        // 压制对方机动性
-        const oppLegal = E.generateLegalMoves(opp).length;
-        if (oppLegal <= 3) {
-            score += 15;
-            tags.push('SQUEEZE');
-        }
-
-        // 预防飞行模式
-        const oppState = E.getState();
-        const oppData = player === E.TYPE_HUMAN ? oppState.playerAI : oppState.playerHuman;
-        if (oppData.piecesOnBoard <= 4 && oppData.piecesOnHand === 0) {
-            tags.push('ANTI_FLYING');
-        }
-
         return { score, tags, risk };
     }
 
@@ -225,10 +222,10 @@ const Strategy = (() => {
     function generateReport() {
         const state = E.getState();
         const player = state.currentPlayer;
-        const opp = player === E.TYPE_HUMAN ? E.TYPE_AI : E.TYPE_HUMAN;
+        const opp = player === E.TYPE_OPPONENT ? E.TYPE_AI : E.TYPE_OPPONENT;
 
-        const playerData = player === E.TYPE_HUMAN ? state.playerHuman : state.playerAI;
-        const oppData = player === E.TYPE_HUMAN ? state.playerAI : state.playerHuman;
+        const playerData = player === E.TYPE_OPPONENT ? state.playerOpponent : state.playerAI;
+        const oppData = player === E.TYPE_OPPONENT ? state.playerAI : state.playerOpponent;
 
         // --- Context ---
         const materialDiff = playerData.piecesOnBoard - oppData.piecesOnBoard;
@@ -267,7 +264,7 @@ const Strategy = (() => {
             if (phase === 'MOVING' && mobilityGap > 2) {
                 ev.tags.push('SUPPRESSION');
             }
-            if (materialDiff < -1 || (phase === 'FLYING')) {
+            if (materialDiff < -1 || phase === 'FLYING') {
                 ev.tags.push('DECISIVE_STRIKE');
             }
 

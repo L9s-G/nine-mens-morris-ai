@@ -8,10 +8,12 @@ const fs = require('fs');
 const vm = require('vm');
 
 // 加载所有模块
-const engineCode = fs.readFileSync('./engine.js', 'utf-8').replace('const Engine = (() => {', 'Engine = (() => {');
-const strategyCode = fs.readFileSync('./strategy.js', 'utf-8').replace('const Strategy = (() => {', 'Strategy = (() => {');
-const aiCode = fs.readFileSync('./ai.js', 'utf-8').replace('const AI = (() => {', 'AI = (() => {');
-const narratorCode = fs.readFileSync('./narrator.js', 'utf-8').replace('const Narrator = (() => {', 'Narrator = (() => {');
+const path = require('path');
+const srcDir = path.resolve(__dirname, '..');
+const engineCode = fs.readFileSync(path.join(srcDir, 'engine.js'), 'utf-8').replace('const Engine = (() => {', 'Engine = (() => {');
+const strategyCode = fs.readFileSync(path.join(srcDir, 'strategy.js'), 'utf-8').replace('const Strategy = (() => {', 'Strategy = (() => {');
+const aiCode = fs.readFileSync(path.join(srcDir, 'ai.js'), 'utf-8').replace('const AI = (() => {', 'AI = (() => {');
+const narratorCode = fs.readFileSync(path.join(srcDir, 'narrator.js'), 'utf-8').replace('const Narrator = (() => {', 'Narrator = (() => {');
 
 const sandbox = { console, Engine: null, Strategy: null, AI: null, Narrator: null, Math };
 vm.createContext(sandbox);
@@ -51,27 +53,30 @@ function log(msg) {
     }
 }
 
-function logBoard(board) {
-    // 3x8 棋盘可视化（简化版）
-    // 九连棋棋盘布局：
-    //   0---1---2
-    //   | 3-4-5 |
-    //   || 678 ||
-    //   9-10-11-12-13-14
-    //   || 15-16-17 ||
-    //   | 18-19-20 |
-    //   21--22--23
-
-    const symbols = { null: '.', 1: 'W', 2: 'B' };
+function getBoardLines(board) {
+    const symbols = { null: 'o', 1: 'W', 2: 'B' };
     const b = board.map(v => symbols[v] || '?');
 
-    log(`    ${b[0]}---${b[1]}---${b[2]}`);
-    log(`    | ${b[3]}-${b[4]}-${b[5]} |`);
-    log(`    || ${b[6]}${b[7]}${b[8]} ||`);
-    log(`${b[9]}-${b[10]}-${b[11]}-${b[12]}-${b[13]}-${b[14]}`);
-    log(`    || ${b[15]}-${b[16]}-${b[17]} ||`);
-    log(`    | ${b[18]}-${b[19]}-${b[20]} |`);
-    log(`    ${b[21]}--${b[22]}--${b[23]}`);
+    return [
+        `${b[0]}-----${b[1]}-----${b[2]}`,
+        `| ${b[3]}---${b[4]}---${b[5]} |`,
+        `| | ${b[6]}-${b[7]}-${b[8]} | |`,
+        `${b[9]}-${b[10]}-${b[11]}   ${b[12]}-${b[13]}-${b[14]}`,
+        `| | ${b[15]}-${b[16]}-${b[17]} | |`,
+        `| ${b[18]}---${b[19]}---${b[20]} |`,
+        `${b[21]}-----${b[22]}-----${b[23]}`
+    ];
+}
+
+function logSideBySide(boardLines, infoLines) {
+    const PAD = '   ';
+    const maxLen = Math.max(...boardLines.map(l => l.length));
+    const rows = Math.max(boardLines.length, infoLines.length);
+    for (let i = 0; i < rows; i++) {
+        const left = (boardLines[i] || '').padEnd(maxLen);
+        const right = infoLines[i] || '';
+        log(left + PAD + right);
+    }
 }
 
 function formatMove(move) {
@@ -89,12 +94,12 @@ function runBattle() {
     log('========================================================');
     log(`九连棋 AI 对战日志`);
     log(`日期: ${new Date().toISOString()}`);
-    log(`白方 (TYPE_HUMAN): ${mode1} 模式`);
+    log(`白方 (TYPE_OPPONENT): ${mode1} 模式`);
     log(`黑方 (TYPE_AI):    ${mode2} 模式`);
     log('========================================================');
     log('');
 
-    Engine.init({ firstPlayer: Engine.TYPE_HUMAN });
+    Engine.init({ firstPlayer: Engine.TYPE_OPPONENT });
 
     let moveNum = 0;
     let gameOver = false;
@@ -103,22 +108,16 @@ function runBattle() {
     while (!gameOver && moveNum < MAX_MOVES) {
         const state = Engine.getState();
         const currentPlayer = state.currentPlayer;
-        const playerName = currentPlayer === Engine.TYPE_HUMAN ? `${mode1}(白)` : `${mode2}(黑)`;
+        const playerName = currentPlayer === Engine.TYPE_OPPONENT ? `${mode1}(白)` : `${mode2}(黑)`;
 
         moveNum++;
 
         // 选择性能模式
-        if (currentPlayer === Engine.TYPE_HUMAN) {
+        if (currentPlayer === Engine.TYPE_OPPONENT) {
             AI.setPerformanceMode(mode1);
         } else {
             AI.setPerformanceMode(mode2);
         }
-
-        log(`--- 第 ${moveNum} 手 | ${playerName} ---`);
-        log(`阶段: ${state.playerHuman.piecesOnHand > 0 ? '放置' : (state.playerHuman.piecesOnBoard === 3 ? '飞行' : '走子')}`);
-        log(`白方: 手中${state.playerHuman.piecesOnHand} 棋盘${state.playerHuman.piecesOnBoard} 失${state.playerHuman.piecesLost}`);
-        log(`黑方: 手中${state.playerAI.piecesOnHand} 棋盘${state.playerAI.piecesOnBoard} 失${state.playerAI.piecesLost}`);
-        log('');
 
         // AI 思考
         const thinkStart = Date.now();
@@ -130,20 +129,27 @@ function runBattle() {
             break;
         }
 
-        // 记录走法
-        const chosenEntry = result.allScores[0]; // 最高分走法
-        log(`走法: ${formatMove(result.move)}`);
-        log(`评分: ${result.score} | 原始: ${chosenEntry.rawScore || 'N/A'}`);
-        log(`标签: [${(chosenEntry.tags || []).join(', ')}]`);
-        log(`风险: ${chosenEntry.risk || 'N/A'}`);
-        log(`策略: ${result.mode}`);
-        log(`用时: ${thinkTime}ms | 节点: ${result.stats.nodeCount} | 深度: ${result.stats.depth}`);
-        log('');
-
         // 执行走法
         Engine.makeMove(result.move);
 
-        // 记录 FEN
+        // 棋盘 + 走法信息并排显示
+        const boardLines = getBoardLines(Engine.getBoard());
+        const chosenEntry = result.allScores[0];
+        const pOpp = state.playerOpponent;
+        const pAI = state.playerAI;
+
+        const infoLines = [
+            `初始：白-${pOpp.piecesOnHand}-${pOpp.piecesOnBoard}-${pOpp.piecesLost} 黑-${pAI.piecesOnHand}-${pAI.piecesOnBoard}-${pAI.piecesLost}`,
+            `走法: ${formatMove(result.move)}`,
+            `评分: ${result.score} | 原始: ${chosenEntry.rawScore || 'N/A'}`,
+            `标签: [${(chosenEntry.tags || []).join(', ')}]`,
+            `风险: ${chosenEntry.risk || 'N/A'}`,
+            `策略: ${result.mode}`,
+            `用时: ${thinkTime}ms | 节点: ${result.stats.nodeCount} | 深度: ${result.stats.depth}`
+        ];
+
+        log(`--- 第 ${moveNum} 手 | ${playerName} ---`);
+        logSideBySide(boardLines, infoLines);
         log(`FEN: ${Engine.toFen()}`);
         log('');
 
@@ -151,7 +157,7 @@ function runBattle() {
         const newState = Engine.getState();
         if (newState.gameOver) {
             gameOver = true;
-            const winner = newState.winner === Engine.TYPE_HUMAN ? `${mode1}(白)` : `${mode2}(黑)`;
+            const winner = newState.winner === Engine.TYPE_OPPONENT ? `${mode1}(白)` : `${mode2}(黑)`;
             log('========================================================');
             log(`游戏结束！胜者: ${winner}`);
             log(`总手数: ${moveNum}`);

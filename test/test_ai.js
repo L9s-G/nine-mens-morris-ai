@@ -1,11 +1,13 @@
 // ai.js 功能测试
 const fs = require('fs');
 const vm = require('vm');
+const path = require('path');
+const srcDir = path.resolve(__dirname, '..');
 
 // 加载所有模块
-const engineCode = fs.readFileSync('./engine.js', 'utf-8').replace('const Engine = (() => {', 'Engine = (() => {');
-const strategyCode = fs.readFileSync('./strategy.js', 'utf-8').replace('const Strategy = (() => {', 'Strategy = (() => {');
-const aiCode = fs.readFileSync('./ai.js', 'utf-8').replace('const AI = (() => {', 'AI = (() => {');
+const engineCode = fs.readFileSync(path.join(srcDir, 'engine.js'), 'utf-8').replace('const Engine = (() => {', 'Engine = (() => {');
+const strategyCode = fs.readFileSync(path.join(srcDir, 'strategy.js'), 'utf-8').replace('const Strategy = (() => {', 'Strategy = (() => {');
+const aiCode = fs.readFileSync(path.join(srcDir, 'ai.js'), 'utf-8').replace('const AI = (() => {', 'AI = (() => {');
 
 const sandbox = { console, Engine: null, Strategy: null, AI: null };
 vm.createContext(sandbox);
@@ -32,11 +34,11 @@ assert(Math.abs(score) < 100, `初始局面评估应接近 0，实际: ${score}`
 
 // --- Test 2: AI 有材料优势时评估应为正 ---
 Engine.init({ firstPlayer: Engine.TYPE_AI });
-// AI 放 3 个子，HUMAN 放 1 个子
+// AI 放 3 个子，对手放 1 个子
 Engine.makeMove({ player: Engine.TYPE_AI, type: 'place', from: -1, to: 0, remove: null });
-Engine.makeMove({ player: Engine.TYPE_HUMAN, type: 'place', from: -1, to: 5, remove: null });
+Engine.makeMove({ player: Engine.TYPE_OPPONENT, type: 'place', from: -1, to: 5, remove: null });
 Engine.makeMove({ player: Engine.TYPE_AI, type: 'place', from: -1, to: 1, remove: null });
-Engine.makeMove({ player: Engine.TYPE_HUMAN, type: 'place', from: -1, to: 6, remove: null });
+Engine.makeMove({ player: Engine.TYPE_OPPONENT, type: 'place', from: -1, to: 6, remove: null });
 Engine.makeMove({ player: Engine.TYPE_AI, type: 'place', from: -1, to: 4, remove: null });
 const score2 = AI.evaluatePosition();
 assert(score2 > 0, `AI 有优势时评估应为正，实际: ${score2}`);

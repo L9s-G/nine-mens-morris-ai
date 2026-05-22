@@ -1,26 +1,38 @@
 #!/bin/bash
-# 运行 5 场 Eco vs Eco 对战测试（并行）
+# 九连棋 AI 对战测试
+# 1. Eco vs Master × 2 轮（交替先手，测试不同深度棋力）
+# 2. Eco vs Eco × 2 轮（测试随机性）
+# 3. Master vs Master × 2 轮（极限压力性能）
 
+cd "$(dirname "$0")"
 mkdir -p battle_logs
 
-echo "=== 开始 Eco 对战测试 ==="
-echo "Eco vs Eco | 5 轮"
+echo "=== 九连棋 AI 对战测试 ==="
 echo ""
 
-# 存储后台进程 PID
+# 对战配置：模式1 模式2 轮次
+BATTLES=(
+    "Eco Master 1"
+    "Master Eco 2"
+    "Eco Eco 1"
+    "Eco Eco 2"
+    "Master Master 1"
+    "Master Master 2"
+)
+
 PIDS=()
 
-for ROUND in 1 2 3 4 5; do
-    LOGFILE="battle_logs/Eco_vs_Eco_r${ROUND}.log"
-    echo "启动: Eco vs Eco 第${ROUND}轮 → ${LOGFILE}"
-    node battle.js Eco Eco "$ROUND" "$LOGFILE" &
+for BATTLE in "${BATTLES[@]}"; do
+    read -r MODE1 MODE2 ROUND <<< "$BATTLE"
+    LOGFILE="battle_logs/${MODE1}_vs_${MODE2}_r${ROUND}.log"
+    echo "启动: ${MODE1} vs ${MODE2} 第${ROUND}轮 → ${LOGFILE}"
+    node battle.js "$MODE1" "$MODE2" "$ROUND" "$LOGFILE" &
     PIDS+=($!)
 done
 
 echo ""
 echo "等待所有对战完成..."
 
-# 等待所有进程完成
 FAIL=0
 for PID in "${PIDS[@]}"; do
     wait "$PID" || FAIL=$((FAIL + 1))
