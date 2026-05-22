@@ -2,75 +2,127 @@
 
 ## 1. Overview
 
-A competitive Nine Men's Morris AI built on Minimax + Alpha-Beta search, driven by a dynamic strategy state machine and a phase-aware evaluation function. Supports three performance modes (Eco / Normal / Master) with progressive determinism, and produces structured tactical reports for LLM integration.
+A competitive Nine Men's Morris AI engine built on Minimax + Alpha-Beta search, with a phase-aware evaluation function and a dynamic strategy state machine. Supports three performance modes (Eco / Normal / Master), produces structured tactical reports for LLM integration, and is designed for both competitive play and open-source reference.
 
 ## 2. Architecture
 
 Three-layer separation: **Perception → Decision → Expression**
 
-1. **Engine (engine.js)** — Board state, `makeMove` / `undoMove`, legal move generation, FEN serialization. The `undoMove` interface is critical for AI deep search.
-2. **Strategy (strategy.js)** — Transforms raw board coordinates into structured data: mobility scanning, formation tension analysis, tactical report generation.
-3. **AI (ai.js)** — Minimax search, static evaluation, strategy state machine, performance mode management. In online mode, tactical reports are fed to an LLM for natural language output; in offline mode, the local state machine selects moves directly.
+### 2.1 Engine Layer (engine.js)
 
-## 3. Minimax Search
+Board state management and rule execution:
 
-### 3.1 Core: Alpha-Beta Pruning
+- **Board representation**: 24-position array, each storing player type or null
+- **Player state**: `piecesOnHand` (pending placement), `piecesOnBoard` (alive on board), `piecesLost` (captured)
+- **Move generation**: `generateLegalMoves(player)` produces all legal moves based on current phase (placement/moving/flying)
+- **Move execution**: `makeMove(move)` returns `{ formedMill, move }`; on mill formation, sets `millMove` state without switching players
+- **Move undo**: `undoMove()` precisely restores board and player state, enabling AI deep search
+- **Serialization**: FEN format (`MILL-FEN`) for state persistence and restoration
+- **Mill detection**: `isInMill(board, pos, player)` checks if a position belongs to a mill
 
-Standard minimax with alpha-beta pruning. Termination conditions: game over, depth exhausted (`depth <= 0`), or time limit reached.
+### 2.2 Strategy Layer (strategy.js)
 
-### 3.2 Half-Turn Horizon Effect Fix
+Transforms board coordinates into structured tactical data:
 
-In Nine Men's Morris, forming a mill and capturing a piece are two separate plies (engine states: `formedMill → millMove → remove`). A naive `depth - 1` for every ply causes the search to miss opponent captures at the depth boundary — the AI sees the mill formation (−40 penalty) but not the subsequent capture (−150).
+- **Formation tension**: `analyzeFormationTension(player)` returns threat count, fork count, and other metrics
+- **Mobility**: `countMobility(player)` counts safe moves
+- **Tactical report**: `generateReport()` outputs standardized JSON with phase, material diff, mobility diff, suggested moves and tags
 
-**Fix**: When `formedMill` is true, the current player's logical turn is not complete (capture still pending), so depth is not decremented:
+### 2.3 AI Controller Layer (ai.js)
 
-```javascript
-const nextDepth = result.formedMill ? depth : depth - 1;
-```
+Core module for search, evaluation, and decision-making:
 
-This ensures "form mill + capture" costs exactly one depth level, matching the logical turn structure.
+- **Minimax search**: Alpha-Beta pruned game tree search
+- **Static evaluation**: Multi-factor weighted evaluation function
+- **Strategy state machine**: Dynamic personality switching based on game context
+- **Performance modes**: Three difficulty presets
+- **Move selection**: Rank-based exponential distribution with progressive determinism
 
-### 3.3 Move Ordering for Pruning Efficiency
+## 3. Game Rules Engine
 
-Moves are sorted by a lightweight heuristic before traversal to maximize alpha-beta cutoffs:
+### 3.1 Three-Phase Flow
 
-- **Capture (remove)**: priority 1000
-- **Mill formation**: priority 500 (detected via lightweight board simulation + `E.isInMill`)
-- **Placement**: priority 10
+| Phase | Condition | Move Type |
+|-------|-----------|-----------|
+| PLACEMENT | `piecesOnHand > 0` | `place`: from hand to empty position |
+| MOVING | Both `piecesOnHand === 0`, `piecesOnBoard > 3` | `move`: to adjacent empty position |
+| FLYING | `piecesOnBoard <= 3` and `piecesOnHand === 0` | `fly`: to any empty position |
 
-The mill detection temporarily sets `board[to] = player` and checks `isInMill` without calling `makeMove`, keeping the overhead minimal.
+### 3.2 Dual-Ply Mill + Capture Structure
 
-### 3.4 Time Management
+"Form mill and capture" is split into two separate plies in the engine:
+
+1. **Form mill**: `makeMove` returns `formedMill: true`, sets `state.millMove = true`, **does not switch players**
+2. **Execute capture**: generates `type: 'remove'` moves, resets `millMove = false` on execution, switches players
+
+This dual-ply structure is the foundation of the "half-turn horizon effect" fix.
+
+### 3.3 Capture Legality
+
+Captures must respect: pieces in fully-formed mills cannot be captured (unless all opponent pieces are in mills). The engine enforces this precisely in `generateLegalMoves` using `isInMill` and neighbor relationships.
+
+## 4. Minimax Search
+
+### 4.1 Alpha-Beta Pruning
+
+Standard minimax with alternating maximizing (AI) and minimizing (opponent) layers. Alpha-Beta pruning reduces nodes by 80%+ with good move ordering.
+
+Termination: game over (`E.isGameOver()`), depth exhausted (`depth <= 0`), or timeout (checked every 1000 nodes, 5-second limit).
+
+### 4.2 Move Ordering
+
+Heuristic sorting before traversal to maximize cutoffs:
+
+| Priority | Type | Score | Detection |
+|----------|------|-------|-----------|
+| Highest | Capture (remove) | 1000 | `m.remove !== null` |
+| High | Mill formation | 500 | Board simulation + `E.isInMill` |
+| Normal | Placement | 10 | `m.type === 'place'` |
+
+Mill detection temporarily modifies the board array without calling `makeMove`, keeping overhead minimal.
+
+### 4.3 Dynamic Depth Adjustment
+
+When depth is not specified, adjusted dynamically based on game context:
+
+- **Placement with many pieces on hand** (≥6): depth capped at 2 (high branching factor)
+- **Suppression mode**: depth +1 (low branching factor, room to search deeper)
+- **Decisive + Flying**: depth −1 (branching factor explosion)
+
+### 4.4 Time Management
 
 - Max think time: 5 seconds
 - Checked every 1000 nodes in minimax
-- Checked at the start of each root move iteration
-- Incomplete results (from mid-evaluation timeout) are discarded
+- Checked at start of each root move iteration
+- Incomplete results from mid-evaluation timeout are discarded
 
-## 4. Static Evaluation
+Measured performance: depth 4 typically 9-588ms, depth 5 mostly 63-513ms, occasional spikes up to the 5-second limit (~1.2M nodes). The timeout serves as a safety net for extreme positions.
 
-### 4.1 Base Weights
+## 5. Static Evaluation
 
-| Factor | Weight | Notes |
-|--------|--------|-------|
+### 5.1 Base Weights
+
+| Factor | Weight | Description |
+|--------|--------|-------------|
 | material | 150 | Per piece advantage |
 | mobility | 2 | Safe move count |
-| threat | 15 | Potential mill (NEAR_MILL) |
-| fork | 30 | Dual threat (base, modified by flying phase) |
+| threat | 15 | Potential mill (one step away) |
+| fork | 30 | Dual threat (base value, modified in flying phase) |
 | mill | 40 | Formed mill |
-| nearMill | 20 | One step from mill (own) |
-| opponentNearMill | −30 | One step from mill (opponent) |
+| nearMill | 20 | One step from own mill (bonus) |
+| opponentNearMill | −30 | One step from opponent mill (penalty) |
 
-### 4.2 Phase-Aware Weight Smoothing
+### 5.2 Phase-Aware Weight Smoothing
 
-Material and mobility weights transition smoothly across game phases via `phaseFactor` (0 = early placement, 1 = moving/flying):
+Weights transition smoothly across game phases to avoid evaluation discontinuities:
 
-- `materialW = 150 * (1 − phaseFactor * 0.3)` — material weight reduces 30% in late game
-- `mobilityW = 2 * (1 + phaseFactor * 2)` — mobility weight triples in late game
+- `phaseFactor = 1 − max(both hands) / 9` (0 = early placement, 1 = hands empty)
+- `materialW = 150 × (1 − phaseFactor × 0.3)` — material weight reduces 30% in late game
+- `mobilityW = 2 × (1 + phaseFactor × 2)` — mobility weight triples in late game
 
-### 4.3 Asymmetric Flying Phase Fork Weighting
+### 5.3 Asymmetric Flying Phase Fork Weighting
 
-When a player enters flying phase (≤3 pieces on board, 0 on hand), the geometric "fork" structure loses tactical meaning because the opponent can fly away. However, if only one side is flying, the multi-piece side should **enhance** fork weight to drive fork-based kills.
+In flying phase (≤3 pieces, 0 on hand), forks lose tactical meaning (opponent can fly away). However, the multi-piece side needs enhanced fork weight to drive fork-based kills.
 
 Detection (must check both `piecesOnBoard` and `piecesOnHand` to avoid false positives during placement):
 
@@ -84,24 +136,34 @@ Weight matrix:
 | Scenario | AI fork | Opponent fork |
 |----------|---------|---------------|
 | Both >3 pieces | 30 | 30 |
-| Both flying (≤3) | 0 | 0 |
-| AI >3, opponent flying | **60** | 0 |
-| AI flying, opponent >3 | 0 | **60** |
+| Both flying | 0 | 0 |
+| AI multi-piece, opponent flying | **60** | 0 |
+| AI flying, opponent multi-piece | 0 | **60** |
 
-The multi-piece side gets doubled fork weight to aggressively seek fork-based kills against the flying opponent.
-
-### 4.4 Other Evaluation Factors
+### 5.4 Other Factors
 
 - **Fly threat**: ±50 penalty when opponent/AI enters flying phase
 - **Desperation bonus**: +20 when material deficit ≥ 3 (encourages risk-taking)
 
-## 5. Move Selection: Rank-Based Exponential Distribution
+## 6. Strategy State Machine
 
-### 5.1 The Problem with Score-Based Softmax
+AI dynamically switches personality based on game context:
 
-A naive softmax over raw scores fails catastrophically when score gaps are large (e.g., mill capture at +240 vs normal move at +40). Even at temperature 3.0, the second-best move gets probability ≈ 0, eliminating all randomness.
+| Mode | Trigger | Behavior | Tags |
+|------|---------|----------|------|
+| **Expansion** | Default / placement | Occupy high-connectivity hubs, build mill networks | `HUB_CONTROL`, `LAYOUT` |
+| **Suppression** | Moving phase, mobility gap > 2 | Block opponent escape, prevent flying transition | `SQUEEZE`, `ANTI_FLYING` |
+| **Decisive** | Material deficit / opponent near flying / flying | Max depth, seek fastest kill via double mills | `ATTACK`, `DECISIVE_STRIKE` |
 
-### 5.2 Solution: Top-k + Rank-Based Exponential
+Strategy mode affects two dimensions:
+1. **Depth**: Suppression +1, Decisive+Flying −1
+2. **Move bonus**: `applyModeBonus` adds/subtracts based on mode and tags
+
+## 7. Move Selection
+
+### 7.1 Rank-Based Exponential Distribution
+
+Score-based softmax fails catastrophically with large score gaps (mill capture +240 vs normal +40 → second-best probability ≈ 0). Solution: decouple probability from score magnitude entirely.
 
 ```javascript
 function pickWithWeightedRandom(sorted, temperature, topK) {
@@ -111,13 +173,13 @@ function pickWithWeightedRandom(sorted, temperature, topK) {
 }
 ```
 
-- **Top-k truncation** (default 3): eliminates catastrophic moves from the candidate pool
-- **Rank-based weights**: `exp(-i / temperature)` — completely independent of score magnitude
-- **Tie-breaking**: equal scores are shuffled via `Math.random() - 0.5` in the sort comparator to prevent stable sort bias
+- **Top-k truncation**: only select from top k moves, excluding catastrophic options
+- **Rank-based weights**: `exp(-i / temperature)`, independent of score magnitude
+- **Tie-breaking**: random shuffle for equal scores prevents stable sort bias
 
-### 5.3 Progressive Determinism
+### 7.2 Progressive Determinism
 
-Temperature varies by game phase to balance exploration and exploitation:
+Temperature varies by game phase:
 
 | Mode | PLACEMENT | MOVING | FLYING | Top-k |
 |------|-----------|--------|--------|-------|
@@ -125,76 +187,82 @@ Temperature varies by game phase to balance exploration and exploitation:
 | Normal | 0.3 | 0.3 | 0.3 | 3 |
 | Master | 0.25 | 0.02 | 0.00 | 2 |
 
-- **Eco**: constant high randomness, simulates human intuition and occasional mistakes
-- **Normal**: moderate randomness throughout
-- **Master**: opening diversity (0.25) to avoid echo chamber effects in mirror matches, near-deterministic in mid-game (0.02), fully deterministic in flying phase (0.00)
+Master mode rationale:
+- **Placement 0.25**: Opening diversity, prevents "echo chamber" in mirror matches
+- **Moving 0.02**: Near-deterministic, full computational power in mid-game
+- **Flying 0.00**: Fully deterministic, random mistakes are too costly in flying phase
 
-Temperature resolution supports both scalar (fixed) and object (phase-mapped) formats via `resolveTemperature`.
+### 7.3 Context Isolation
 
-## 6. Strategy State Machine
-
-Three modes triggered by game context:
-
-| Mode | Trigger | Behavior |
-|------|---------|----------|
-| **Expansion** | Default / placement phase | Occupy high-connectivity hubs, build potential mill networks |
-| **Suppression** | Moving phase, mobility advantage | Block opponent escape paths, prevent flying transition |
-| **Decisive** | Material deficit, opponent near flying, or flying phase | Max search depth, seek fastest kill path via double mills |
-
-Mode determination uses `report.context.phase`, `materialDiff`, `isOpponentNearFlying`, and `metrics.mobilityGap`.
-
-## 7. Trap Detection (Depth Gap Evaluation)
-
-Identifies "hidden traps": moves that appear bad at shallow depth but are actually winning at deeper search.
-
-- Shallow evaluation: D=0 (static eval, near-zero cost)
-- Deep evaluation: D=shallow+2 (or custom `deepDepth`)
-- If `trapScore = deep − shallow > threshold` and `shallow < 0`, tag as `HIDDEN_TRAP`
-
-## 8. Performance Modes
-
-| Mode | Depth | Trap Check | Temperature | Top-k | Label |
-|------|-------|------------|-------------|-------|-------|
-| Eco | 1 | off | 0.8 | 2 | Lightweight |
-| Normal | 3 | on | 0.3 | 3 | Balanced |
-| Master | 4 | on | phase-mapped | 2 | Full power |
-
-Dynamic depth adjustment (when depth not explicitly specified):
-- Placement phase with many pieces on hand: depth capped at 2
-- Suppression mode: depth +1 (up to 6)
-- Decisive + Flying: depth −1 (min 2)
-
-## 9. Context Isolation
-
-In dual AI battles, `selectBestMoveForPlayer` snapshots the global config into a local variable at entry to prevent temperature/topK cross-contamination between players:
+In dual AI battles, `selectBestMoveForPlayer` snapshots global config to a local variable at entry, preventing temperature/topK cross-contamination:
 
 ```javascript
 const config = { ...currentConfig };
 ```
 
-All downstream references (depth, temperature, topK, label) use this local snapshot.
+## 8. Trap Detection
+
+Identifies "hidden traps": moves that appear bad at shallow depth but are actually winning at deeper search.
+
+- Shallow: D=0 (static eval, near-zero cost)
+- Deep: D=current config depth (or custom `deepDepth`)
+- `trapScore = deep score − shallow score`
+- If `trapScore > threshold (default 50)` and `shallow score < 0`, tag as `HIDDEN_TRAP`
+
+Use case: AI can deliberately choose seemingly bad moves to lure opponents into traps.
+
+## 9. Performance Modes
+
+| Mode | Depth | Trap Check | Temperature | Top-k | Use Case |
+|------|-------|------------|-------------|-------|----------|
+| Eco | 1 | off | 0.8 | 2 | Lightweight, simulates novice |
+| Normal | 3 | on | 0.3 | 3 | Balanced, suitable for casual play |
+| Master | 4 | on | phase-mapped | 2 | Full power, competitive level |
 
 ## 10. Fallback Safety
 
-Multiple fallback layers ensure the main decision interface never returns null:
+Multiple layers ensure the main decision interface never returns null:
 
-1. `moves.length === 0` → return null (no legal moves, game should be over)
-2. Timeout with empty `moveScores` → return first legal move with score 0
-3. `pickWithWeightedRandom` returns null → return first legal move with score 0
+1. `moves.length === 0` → return null (game should be over)
+2. Timeout with empty `moveScores` → return first legal move
+3. `pickWithWeightedRandom` returns null → return first legal move
 
 ## 11. Test Infrastructure
 
-- `test/battle.js`: Dual AI battle runner with per-move logging (board state, score, tags, strategy, timing)
+- `test/battle.js`: Dual AI battle runner with per-move logging (board, score, tags, strategy, timing)
 - `test/run_battles.sh`: 24-round tournament (3 modes × all pairings × 4 rounds alternating first player)
-- Typical results: Master > Normal > Eco, no draws in normal play, game lengths 20-90 hands
+- Typical results: Master > Normal > Eco, no draws in normal play, 20-90 hands per game
 
-## 12. Design Decisions Log
+## 12. Design Highlights
 
-| Decision | Rationale |
-|----------|-----------|
-| formedMill depth fix | Prevents horizon effect where AI misses opponent captures at depth boundary |
-| Rank-based exponential | Eliminates score-magnitude-dependent probability collapse in softmax |
-| Progressive determinism | Opening diversity prevents echo chamber; late-game determinism prevents blunders |
-| Asymmetric fork weights | Multi-piece side needs enhanced fork to kill flying opponent; flying side fork is meaningless |
-| Top-k truncation | Prevents catastrophic moves from entering the random selection pool |
-| Tie-breaking shuffle | Prevents stable sort from creating unfair rank discrimination among equal-score moves |
+Key problems discovered and solved during development, with reference value for similar game AI projects:
+
+### 12.1 Half-Turn Horizon Effect
+
+**Problem**: Mill + capture is two plies but one logical turn. If depth runs out at mill formation, AI sees the mill (−40) but not the capture (−150), failing to block.
+
+**Fix**: Don't decrement depth on mill formation, ensuring the capture ply is searched.
+
+### 12.2 Rank-Based Exponential Distribution
+
+**Problem**: Score-based softmax degenerates to argmax with large score gaps.
+
+**Fix**: Rank-based exponential + top-k truncation. Probability depends only on rank, not score magnitude.
+
+### 12.3 Progressive Determinism
+
+**Problem**: Zero-temperature mirror matches produce "echo chamber" — first player always loses.
+
+**Fix**: Master mode retains 0.25 temperature in placement for opening diversity, converges to near-deterministic in later phases.
+
+### 12.4 Asymmetric Flying Phase Evaluation
+
+**Problem**: Forks are meaningless in flying phase, but zeroing fork for both sides kills the multi-piece side's winning strategy.
+
+**Fix**: Detect flying per-side. Flying player fork=0, multi-piece opponent fork=60 (enhanced kill drive).
+
+### 12.5 Move Ordering with Mill Detection
+
+**Problem**: Alpha-Beta pruning efficiency depends heavily on move traversal order.
+
+**Fix**: Capture > Mill formation > Placement priority. Mill detection via temporary board modification, no `makeMove` overhead.
