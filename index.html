@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>九连棋</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- 标题栏 -->
+        <header id="header">
+            <h1>九连棋</h1>
+            <div id="thinking-indicator" class="hidden">
+                <div class="spinner"></div>
+                <span>AI 思考中...</span>
+            </div>
+        </header>
+
+        <!-- 中间区域：棋盘 + 弹幕 -->
+        <main id="board-area">
+            <svg id="board" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <!-- 交互层凹陷内阴影：feComposite out 裁剪到圆内 -->
+                    <filter id="inset-shadow">
+                        <feOffset dx="3" dy="3" in="SourceAlpha" result="offset"/>
+                        <feGaussianBlur stdDeviation="3" in="offset" result="offset-blur"/>
+                        <feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/>
+                        <feFlood flood-color="#000" flood-opacity="0.6" result="color"/>
+                        <feComposite operator="in" in="color" in2="inverse" result="shadow"/>
+                        <feComposite operator="over" in="shadow" in2="SourceGraphic"/>
+                    </filter>
+
+                    <!-- 交互层凸起滤镜：针对浅色底优化 -->
+                    <filter id="hover-bump" x="-30%" y="-30%" width="160%" height="160%"
+                            color-interpolation-filters="sRGB">
+                        <!-- 外阴影：右下，浅色底上要轻 -->
+                        <feOffset dx="4" dy="4" in="SourceAlpha" result="outer"/>
+                        <feGaussianBlur stdDeviation="6" in="outer" result="outerBlur"/>
+                        <feFlood flood-color="#281e14" flood-opacity="0.18" result="outerColor"/>
+                        <feComposite in="outerColor" in2="outerBlur" operator="in" result="outerLayer"/>
+                        <!-- 内阴影：左上边缘变暗（曲面背光面） -->
+                        <feGaussianBlur stdDeviation="3" in="SourceAlpha" result="innerShadowBlur"/>
+                        <feFlood flood-color="#000" flood-opacity="0.25" result="innerShadowColor"/>
+                        <feComposite in="innerShadowColor" in2="innerShadowBlur" operator="in" result="innerShadowRaw"/>
+                        <feOffset dx="2" dy="2" in="innerShadowRaw" result="innerShadowLayer"/>
+                        <!-- 内高光：右下迎光面（浅色底上白色要更亮） -->
+                        <feGaussianBlur stdDeviation="3" in="SourceAlpha" result="innerHighBlur"/>
+                        <feFlood flood-color="#fff" flood-opacity="0.95" result="innerHighColor"/>
+                        <feComposite in="innerHighColor" in2="innerHighBlur" operator="in" result="innerHighRaw"/>
+                        <feOffset dx="-2" dy="-2" in="innerHighRaw" result="innerHighLayer"/>
+                        <!-- 合成 -->
+                        <feMerge>
+                            <feMergeNode in="outerLayer"/>
+                            <feMergeNode in="SourceGraphic"/>
+                            <feMergeNode in="innerShadowLayer"/>
+                            <feMergeNode in="innerHighLayer"/>
+                        </feMerge>
+                    </filter>
+
+                    <!-- 棋子立体感滤镜：外阴影（右下）+ 内高光（左上） -->
+                    <filter id="piece-shadow" x="-50%" y="-50%" width="200%" height="200%"
+                            color-interpolation-filters="sRGB">
+                        <!-- 主外阴影：暖褐色，大模糊，投射到右下 -->
+                        <feOffset dx="5" dy="5" in="SourceAlpha" result="outer1"/>
+                        <feGaussianBlur stdDeviation="10" in="outer1" result="outer1Blur"/>
+                        <feFlood flood-color="#281e14" flood-opacity="0.25" result="outer1Color"/>
+                        <feComposite in="outer1Color" in2="outer1Blur" operator="in" result="outer1Layer"/>
+                        <!-- 紧贴阴影：小偏移，增加厚重感 -->
+                        <feOffset dx="1" dy="2" in="SourceAlpha" result="outer2"/>
+                        <feGaussianBlur stdDeviation="2" in="outer2" result="outer2Blur"/>
+                        <feFlood flood-color="#000" flood-opacity="0.15" result="outer2Color"/>
+                        <feComposite in="outer2Color" in2="outer2Blur" operator="in" result="outer2Layer"/>
+                        <!-- 内高光：左上迎光面，让棋子鼓起来 -->
+                        <feGaussianBlur stdDeviation="3" in="SourceAlpha" result="innerBlur"/>
+                        <feFlood flood-color="#fff" flood-opacity="0.8" result="innerColor"/>
+                        <feComposite in="innerColor" in2="innerBlur" operator="in" result="innerRaw"/>
+                        <feOffset dx="2" dy="2" in="innerRaw" result="innerLayer"/>
+                        <!-- 合成：外阴影在后，源图形在中，内高光在前 -->
+                        <feMerge>
+                            <feMergeNode in="outer1Layer"/>
+                            <feMergeNode in="outer2Layer"/>
+                            <feMergeNode in="SourceGraphic"/>
+                            <feMergeNode in="innerLayer"/>
+                        </feMerge>
+                    </filter>
+
+                    <!-- 棋盘边框立体感滤镜：突起 + 投影 -->
+                    <filter id="board-border" x="-10%" y="-10%" width="120%" height="120%"
+                            color-interpolation-filters="sRGB">
+                        <!-- 底部投影 -->
+                        <feOffset dx="4" dy="6" in="SourceAlpha" result="shadowOffset"/>
+                        <feGaussianBlur stdDeviation="8" in="shadowOffset" result="shadowBlur"/>
+                        <feFlood flood-color="#1a1a2e" flood-opacity="0.5" result="shadowColor"/>
+                        <feComposite in="shadowColor" in2="shadowBlur" operator="in" result="shadow"/>
+                        <!-- 左上高光边缘 -->
+                        <feOffset dx="-2" dy="-2" in="SourceAlpha" result="highlightOffset"/>
+                        <feGaussianBlur stdDeviation="1.5" in="highlightOffset" result="highlightBlur"/>
+                        <feFlood flood-color="#fff" flood-opacity="0.7" result="highlightColor"/>
+                        <feComposite in="highlightColor" in2="highlightBlur" operator="in" result="highlight"/>
+                        <!-- 右下暗边 -->
+                        <feOffset dx="2" dy="2" in="SourceAlpha" result="darkEdgeOffset"/>
+                        <feGaussianBlur stdDeviation="1.5" in="darkEdgeOffset" result="darkEdgeBlur"/>
+                        <feFlood flood-color="#000" flood-opacity="0.3" result="darkEdgeColor"/>
+                        <feComposite in="darkEdgeColor" in2="darkEdgeBlur" operator="in" result="darkEdge"/>
+                        <!-- 合成 -->
+                        <feMerge>
+                            <feMergeNode in="shadow"/>
+                            <feMergeNode in="SourceGraphic"/>
+                            <feMergeNode in="darkEdge"/>
+                            <feMergeNode in="highlight"/>
+                        </feMerge>
+                    </filter>
+                </defs>
+                <!-- 棋盘底座边框（带立体效果） -->
+                <g id="board-border-layer" filter="url(#board-border)">
+                    <rect x="20" y="20" width="560" height="560" rx="10" fill="#8B6914"/>
+                    <rect x="25" y="25" width="550" height="550" rx="8" fill="#b8860b"/>
+                    <rect x="30" y="30" width="540" height="540" rx="6" fill="#d4a86b"/>
+                </g>
+                <!-- 棋盘面（不受滤镜影响） -->
+                <rect x="38" y="38" width="524" height="524" rx="4" fill="#e6cb9a"/>
+                <!-- 棋盘线 -->
+                <g id="board-lines" stroke="#8B7355" stroke-width="3" fill="none">
+                    <!-- 外方 (grid 0,0 → 6,6) -->
+                    <rect x="50" y="50" width="500" height="500" rx="4"/>
+                    <!-- 中方 (grid 1,1 → 5,5) -->
+                    <rect x="133.33" y="133.33" width="333.33" height="333.33" rx="3"/>
+                    <!-- 内方 (grid 2,2 → 4,4) -->
+                    <rect x="216.67" y="216.67" width="166.67" height="166.67" rx="2"/>
+                    <!-- 连接线 -->
+                    <line x1="50" y1="300" x2="216.67" y2="300"/>
+                    <line x1="383.33" y1="300" x2="550" y2="300"/>
+                    <line x1="300" y1="50" x2="300" y2="216.67"/>
+                    <line x1="300" y1="383.33" x2="300" y2="550"/>
+                </g>
+                <!-- 交点标记（黑色小圆点） -->
+                <g id="board-dots"></g>
+                <!-- 高亮层（合法目标） -->
+                <g id="board-highlights"></g>
+                <!-- 交互层（透明点击区域） -->
+                <g id="board-positions"></g>
+                <!-- 棋子层 -->
+                <g id="board-pieces"></g>
+                <!-- Debug 层（位置编号） -->
+                <g id="board-debug"></g>
+            </svg>
+            <!-- 弹幕层 -->
+            <div id="danmaku-layer"></div>
+        </main>
+
+        <!-- 状态区域 -->
+        <aside id="status-panel">
+            <div id="player-status">
+                <div class="player-row" id="status-opponent">
+                    <span class="player-label" id="label-opponent">先手</span>
+                    <div class="piece-dots" id="dots-opponent"></div>
+                </div>
+                <div class="player-row" id="status-ai">
+                    <span class="player-label" id="label-ai">后手</span>
+                    <div class="piece-dots" id="dots-ai"></div>
+                </div>
+            </div>
+            <div id="game-info">
+                <span id="phase-display"></span>
+                <span id="message-display"></span>
+            </div>
+            <div id="settings-row">
+                <button id="btn-difficulty" class="setting-btn"></button>
+                <button id="btn-first-player" class="setting-btn"></button>
+            </div>
+            <div id="controls">
+                <button id="btn-new-game">新游戏</button>
+            </div>
+        </aside>
+
+        <!-- AI 气泡区（横屏显示，竖屏隐藏） -->
+        <aside id="bubble-area">
+            <div id="bubble-list"></div>
+        </aside>
+
+        <!-- 游戏结果弹窗 -->
+        <div id="game-result-modal" class="modal hidden">
+            <div class="modal-content">
+                <h2 id="result-title"></h2>
+                <div id="result-stats"></div>
+                <button id="btn-result-new-game">再来一局</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="engine.js"></script>
+    <script src="strategy.js"></script>
+    <script src="ai.js"></script>
+    <script src="narrator.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>

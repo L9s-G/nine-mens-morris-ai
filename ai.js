@@ -36,9 +36,9 @@ const AI = (() => {
     const MAX_THINK_TIME = 5000; // 最大思考时间 5 秒
 
     const PerformanceConfig = {
-        Eco:    { depth: 1, trapCheck: false, temperature: 0.8, topK: 2, label: '节能模式' },
-        Normal: { depth: 3, trapCheck: true,  temperature: 0.3, topK: 3, label: '平衡模式' },
-        Master: { depth: 4, trapCheck: true,  temperature: { PLACEMENT: 0.25, MOVING: 0.02, FLYING: 0.00 }, topK: 2, label: '大师模式' }
+        Eco:    { depth: 1, trapCheck: false, temperature: 0.8, topK: 2, label: '菜鸟' },
+        Normal: { depth: 3, trapCheck: true,  temperature: 0.3, topK: 3, label: '老手' },
+        Master: { depth: 4, trapCheck: true,  temperature: { PLACEMENT: 0.25, MOVING: 0.02, FLYING: 0.00 }, topK: 2, label: '大师' }
     };
 
     /**
