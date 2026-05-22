@@ -24,11 +24,11 @@ const AI = (() => {
     const WEIGHTS = {
         material:  150,  // 每多一子的分值
         mobility:   2,   // 每个安全移动的分值
-        threat:    55,   // 每个潜在磨坊的分值（接近 mill+吃子 的一半，确保浅层搜索也堵截）
-        fork:      20,   // 每个叉子的分值
+        threat:    15,   // 每个潜在磨坊的分值
+        fork:      30,   // 每个叉子的分值
         mill:      40,   // 形成磨坊的分值
-        nearMill:  30,   // 差一步成行的额外奖励
-        opponentNearMill: -40 // 对手差一步成行的惩罚
+        nearMill:  20,   // 差一步成行的额外奖励
+        opponentNearMill: -30 // 对手差一步成行的惩罚
     };
 
     // ==================== 性能模式配置 ====================
@@ -36,10 +36,18 @@ const AI = (() => {
     const MAX_THINK_TIME = 5000; // 最大思考时间 5 秒
 
     const PerformanceConfig = {
-        Eco:    { depth: 1, trapCheck: false, temperature: 3.0, label: '节能模式' },
-        Normal: { depth: 3, trapCheck: true,  temperature: 0.5, label: '平衡模式' },
-        Master: { depth: 4, trapCheck: true,  temperature: 0.1, label: '大师模式' }
+        Eco:    { depth: 1, trapCheck: false, temperature: 0.8, topK: 2, label: '节能模式' },
+        Normal: { depth: 3, trapCheck: true,  temperature: 0.3, topK: 3, label: '平衡模式' },
+        Master: { depth: 4, trapCheck: true,  temperature: { PLACEMENT: 0.25, MOVING: 0.02, FLYING: 0.00 }, topK: 2, label: '大师模式' }
     };
+
+    /**
+     * 根据阶段解析温度值（支持标量或阶段映射对象）
+     */
+    function resolveTemperature(tempConfig, phase) {
+        if (typeof tempConfig === 'number') return tempConfig;
+        return tempConfig[phase] ?? 0.05;
+    }
 
     // 当前配置（默认平衡模式）
     let currentConfig = PerformanceConfig.Normal;
@@ -102,7 +110,6 @@ const AI = (() => {
         const aiTension = S.analyzeFormationTension(E.TYPE_AI);
         const opponentTension = S.analyzeFormationTension(E.TYPE_OPPONENT);
         const threatDiff = aiTension.playerThreats - opponentTension.playerThreats;
-        const forkDiff = aiTension.playerForks - opponentTension.playerForks;
 
         // near mill 直接奖惩（与 threatDiff 叠加，强化防守意识）
         const nearMillBonus = WEIGHTS.nearMill * aiTension.playerThreats + WEIGHTS.opponentNearMill * opponentTension.playerThreats;
@@ -112,10 +119,26 @@ const AI = (() => {
         const opponentMills = E.countMills(E.TYPE_OPPONENT);
         const millDiff = aiMills - opponentMills;
 
+        // 非对称飞行阶段叉子权重
+        const aiFlying = ai.piecesOnBoard <= 3 && ai.piecesOnHand === 0;
+        const oppFlying = opponent.piecesOnBoard <= 3 && opponent.piecesOnHand === 0;
+        let aiForkW = WEIGHTS.fork;
+        let oppForkW = WEIGHTS.fork;
+        if (aiFlying && oppFlying) {
+            // 双方都在飞：叉子无意义
+            aiForkW = 0; oppForkW = 0;
+        } else if (oppFlying) {
+            // 对手在飞、我方多子：fork 是我方决胜武器
+            aiForkW = 60; oppForkW = 0;
+        } else if (aiFlying) {
+            // 我方在飞、对手多子：fork 是对手决胜武器
+            aiForkW = 0; oppForkW = 60;
+        }
+
         // 对手接近飞行模式的惩罚
         let flyThreat = 0;
-        if (opponent.piecesOnBoard === 3 && opponent.piecesOnHand === 0) flyThreat += 50;
-        if (ai.piecesOnBoard === 3 && ai.piecesOnHand === 0) flyThreat -= 50;
+        if (oppFlying) flyThreat += 50;
+        if (aiFlying) flyThreat -= 50;
 
         // 绝望修正：大幅落后时寻找陷阱机会
         let desperationBonus = 0;
@@ -127,7 +150,7 @@ const AI = (() => {
             materialW * materialDiff +
             mobilityW * mobilityDiff +
             WEIGHTS.threat * threatDiff +
-            WEIGHTS.fork * forkDiff +
+            aiForkW * aiTension.playerForks - oppForkW * opponentTension.playerForks +
             WEIGHTS.mill * millDiff +
             nearMillBonus +
             flyThreat +
@@ -154,8 +177,8 @@ const AI = (() => {
             return evaluatePosition();
         }
 
-        // 终止条件：游戏结束或深度为 0
-        if (E.isGameOver() || depth === 0 || timeLimitReached) {
+        // 终止条件：游戏结束或深度耗尽
+        if (E.isGameOver() || depth <= 0 || timeLimitReached) {
             return evaluatePosition();
         }
 
@@ -167,10 +190,21 @@ const AI = (() => {
             return isMaximizing ? -10000 : 10000;
         }
 
-        // 走法排序：优先考虑有标签的走法（提高剪枝效率）
+        // 走法排序：吃子 > 成行 > 占位，提升 alpha-beta 剪枝效率
+        const board = E.getRawState().board;
         const scored = moves.map(m => {
             let quickScore = 0;
-            if (m.remove !== null) quickScore += 100;
+            if (m.remove !== null) quickScore += 1000;  // 吃子最高优先
+            // 轻量成行检测：模拟落子后检查是否成磨坊
+            if (m.to >= 0 && E.isInMill) {
+                const saved = board[m.to];
+                const savedFrom = m.from >= 0 ? board[m.from] : null;
+                board[m.to] = m.player;
+                if (m.from >= 0) board[m.from] = null;
+                if (E.isInMill(board, m.to, m.player)) quickScore += 500;
+                board[m.to] = saved;
+                if (m.from >= 0) board[m.from] = savedFrom;
+            }
             if (m.type === 'place') quickScore += 10;
             return { move: m, quickScore };
         });
@@ -181,7 +215,9 @@ const AI = (() => {
             for (let i = 0; i < scored.length; i++) {
                 const result = E.makeMove(scored[i].move);
                 const nextIsMax = result.formedMill ? isMaximizing : !isMaximizing;
-                const eval_ = minimax(depth - 1, alpha, beta, nextIsMax);
+                // 成行+吃子是同一个逻辑回合，成行时不扣深度
+                const nextDepth = result.formedMill ? depth : depth - 1;
+                const eval_ = minimax(nextDepth, alpha, beta, nextIsMax);
                 E.undoMove();
                 maxEval = Math.max(maxEval, eval_);
                 alpha = Math.max(alpha, eval_);
@@ -193,7 +229,9 @@ const AI = (() => {
             for (let i = 0; i < scored.length; i++) {
                 const result = E.makeMove(scored[i].move);
                 const nextIsMax = result.formedMill ? isMaximizing : !isMaximizing;
-                const eval_ = minimax(depth - 1, alpha, beta, nextIsMax);
+                // 成行+吃子是同一个逻辑回合，成行时不扣深度
+                const nextDepth = result.formedMill ? depth : depth - 1;
+                const eval_ = minimax(nextDepth, alpha, beta, nextIsMax);
                 E.undoMove();
                 minEval = Math.min(minEval, eval_);
                 beta = Math.min(beta, eval_);
@@ -287,22 +325,30 @@ const AI = (() => {
      * @param {number} temperature - 温度参数（越小越确定，越大越随机）
      * @returns {object} 选中的走法条目
      */
-    function pickWithWeightedRandom(sorted, temperature = 1.0) {
+    /**
+     * 基于排名的指数分布随机选择（Top-k 截断）
+     * @param {Array} sorted - 已按分数降序排列的走法数组
+     * @param {number} temperature - 温度参数，控制指数衰减速度
+     * @param {number} topK - 参与随机的最大候选数（默认 3）
+     */
+    function pickWithWeightedRandom(sorted, temperature = 1.0, topK = 3) {
         if (sorted.length === 0) return null;
         if (sorted.length === 1) return sorted[0];
 
-        // softmax 计算概率
-        const maxScore = sorted[0].score;
-        const expScores = sorted.map(m => Math.exp((m.score - maxScore) / temperature));
-        const sumExp = expScores.reduce((a, b) => a + b, 0);
+        // 1. Top-k 截断
+        const candidates = sorted.slice(0, Math.min(topK, sorted.length));
 
-        // 加权随机选择
+        // 2. 基于排名的指数分布权重：rank i 的权重 = exp(-i / temperature)
+        const expWeights = candidates.map((_, i) => Math.exp(-i / temperature));
+        const sumWeights = expWeights.reduce((a, b) => a + b, 0);
+
+        // 3. 轮盘赌选择
         let r = Math.random();
-        for (let i = 0; i < sorted.length; i++) {
-            r -= expScores[i] / sumExp;
-            if (r <= 0) return sorted[i];
+        for (let i = 0; i < candidates.length; i++) {
+            r -= expWeights[i] / sumWeights;
+            if (r <= 0) return candidates[i];
         }
-        return sorted[sorted.length - 1]; // fallback
+        return candidates[0]; // fallback
     }
 
     /**
@@ -312,7 +358,8 @@ const AI = (() => {
      * @returns {{ move: object, score: number, mode: string, report: object, stats: object }}
      */
     function selectBestMoveForPlayer(player, depth) {
-        let d = depth || currentConfig.depth;
+        const config = { ...currentConfig };
+        let d = depth || config.depth;
         const isAI = (player === E.TYPE_AI);
 
         nodeCount = 0;
@@ -364,8 +411,13 @@ const AI = (() => {
             const result = E.makeMove(move);
             // minimax 返回 AI 视角分数：AI 取原值，OPPONENT 取反
             const nextIsMax = result.formedMill ? isAI : !isAI;
-            const rawScore = isAI ? minimax(d - 1, -Infinity, Infinity, nextIsMax) : -minimax(d - 1, -Infinity, Infinity, nextIsMax);
+            // 成行+吃子是同一个逻辑回合，成行时不扣深度
+            const nextDepth = result.formedMill ? d : d - 1;
+            const rawScore = isAI ? minimax(nextDepth, -Infinity, Infinity, nextIsMax) : -minimax(nextDepth, -Infinity, Infinity, nextIsMax);
             E.undoMove();
+
+            // minimax 内部可能已超时，丢弃不完整结果
+            if (timeLimitReached) break;
 
             const reportEntry = report.suggestedMoves.find(
                 r => r.move.from === move.from && r.move.to === move.to && r.move.remove === move.remove
@@ -391,17 +443,34 @@ const AI = (() => {
                     nodeCount,
                     elapsed: Date.now() - startTime,
                     nodesPerMs: 0,
-                    config: currentConfig.label,
+                    config: config.label,
                     timeLimited: true
                 }
             };
         }
 
-        // 按分数降序排列
-        moveScores.sort((a, b) => b.score - a.score);
+        // 按分数降序排列（同分随机打散，避免稳定排序导致的排名歧视）
+        moveScores.sort((a, b) => {
+            if (Math.abs(b.score - a.score) < 0.0001) return Math.random() - 0.5;
+            return b.score - a.score;
+        });
 
-        // 加权随机选择（温度参数控制随机性）
-        const chosen = pickWithWeightedRandom(moveScores, currentConfig.temperature);
+        // 基于排名的指数分布随机选择
+        const effectiveTemp = resolveTemperature(config.temperature, report.context.phase);
+        const chosen = pickWithWeightedRandom(moveScores, effectiveTemp, config.topK);
+
+        // 兜底防线：确保主决策接口不返回 null
+        if (!chosen) {
+            const elapsed = Date.now() - startTime;
+            return {
+                move: moves[0] || null,
+                score: 0,
+                mode,
+                report,
+                allScores: moveScores,
+                stats: { depth: d, nodeCount, elapsed, nodesPerMs: 0, config: config.label, timeLimited: true }
+            };
+        }
 
         const elapsed = Date.now() - startTime;
 
@@ -416,7 +485,7 @@ const AI = (() => {
                 nodeCount,
                 elapsed,
                 nodesPerMs: nodeCount > 0 ? Math.round(nodeCount / elapsed) : 0,
-                config: currentConfig.label,
+                config: config.label,
                 timeLimited: timeLimitReached
             }
         };

@@ -545,6 +545,7 @@ const Engine = (() => {
         makeMove,
         undoMove,
         countMills,
+        isInMill,
         
         // 调试辅助
         debug: {

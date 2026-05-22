@@ -1,138 +1,200 @@
+# Nine Men's Morris AI Engine Specification
 
-# 九连棋“宗师”AI 引擎设计规范 (Nine Men's Morris "Master" AI Spec)
+## 1. Overview
 
-## 1. 概述 (Overview)
+A competitive Nine Men's Morris AI built on Minimax + Alpha-Beta search, driven by a dynamic strategy state machine and a phase-aware evaluation function. Supports three performance modes (Eco / Normal / Master) with progressive determinism, and produces structured tactical reports for LLM integration.
 
-本项目旨在构建一个具备“博弈灵魂”的九连棋 AI。不同于传统的固定难度 AI，本引擎通过动态战术报告（Strategic Report）驱动，能够根据局势实时切换博弈性格，并支持 **LLM（大语言模型）** 产生的自然语言策略对白，同时在离线状态下保持硬核的竞技强度。
+## 2. Architecture
 
-## 2. 系统架构 (System Architecture)
+Three-layer separation: **Perception → Decision → Expression**
 
-系统采用“感知-决策-表达”三层分离架构：
+1. **Engine (engine.js)** — Board state, `makeMove` / `undoMove`, legal move generation, FEN serialization. The `undoMove` interface is critical for AI deep search.
+2. **Strategy (strategy.js)** — Transforms raw board coordinates into structured data: mobility scanning, formation tension analysis, tactical report generation.
+3. **AI (ai.js)** — Minimax search, static evaluation, strategy state machine, performance mode management. In online mode, tactical reports are fed to an LLM for natural language output; in offline mode, the local state machine selects moves directly.
 
-1.  **物理引擎层 (Engine.js)**：
-    
-    -   维护棋盘状态、执行 `makeMove`、验证合法性。
-        
-    -   **核心功能**：支持 FEN 状态序列化，提供 `undoMove`（撤销）接口以支持 AI 深度搜索。
-        
-2.  **战术分析层 (Strategy.js)**：
-    
-    -   将冰冷的坐标转化为结构化数据。
-        
-    -   **职责**：进行机动性扫描、阵型张力评估、生成标准化战术报告。
-        
-3.  **人格驱动层 (Persona/AI Controller)**：
-    
-    -   **在线模式**：将战术报告喂给 LLM，生成富有性格的对白与决策。
-        
-    -   **离线模式**：根据报告中的权重标签，由本地状态机选择最优走法。
-        
+## 3. Minimax Search
 
-## 3. 动态评估体系 (Dynamic Evaluation)
+### 3.1 Core: Alpha-Beta Pruning
 
-我们放弃了静态的点位加分制（如单纯给中心点加分），转而采用基于**图论动态属性**的评估模型：
+Standard minimax with alpha-beta pruning. Termination conditions: game over, depth exhausted (`depth <= 0`), or time limit reached.
 
-### 3.1 动态机动性 (Effective Mobility)
+### 3.2 Half-Turn Horizon Effect Fix
 
--   **计算逻辑**：不只是计算 `generateLegalMoves` 的数量，而是过滤掉“移动后会被对方立即成行”的自杀位。
-    
--   **压制系数**：计算对方的“呼吸空间”。当对方有效步数趋近于零时，触发“闷杀”逻辑。
-    
+In Nine Men's Morris, forming a mill and capturing a piece are two separate plies (engine states: `formedMill → millMove → remove`). A naive `depth - 1` for every ply causes the search to miss opponent captures at the depth boundary — the AI sees the mill formation (−40 penalty) but not the subsequent capture (−150).
 
-### 3.2 阵型张力 (Formation Tension)
+**Fix**: When `formedMill` is true, the current player's logical turn is not complete (capture still pending), so depth is not decremented:
 
--   **双重威胁 (Forks)**：识别共用一个空格（Null）的两个连线阵型（3-3 叉子）。
-    
--   **磨坊活性 (Mill Activity)**：评估一个磨坊开启和关闭的效率。如果一子移出后能迅速移回形成新磨坊，则该点位权重极大化。
-    
-
-## 4. 宗师级策略状态机 (Master Strategy State Machine)
-
-Master AI 并不是单一的性格，而是一个根据局势动态切换策略的实体。
-
-策略模式
-
-触发条件
-
-行为逻辑
-
-语义标签
-
-**扩张布局 (Expansion)**
-
-放置阶段，子数 > 6
-
-优先占据高联通性的点位，构建潜在的连线网络，不急于成行。
-
-`LAYOUT`, `HUB_CONTROL`
-
-**窒息压制 (Suppression)**
-
-走子阶段，机动性占优
-
-放弃不必要的吃子，优先围堵对方棋子的邻居位。预防对方进入“飞行模式”。
-
-`SQUEEZE`, `ANTI_FLYING`
-
-**决战收割 (Decisive Strike)**
-
-劣势翻盘或残局收割
-
-切换至最高搜索深度，利用双重磨坊或连击寻求最快胜径。
-
-`ATTACK`, `KILL_SHOT`
-
-## 5. 标准化战术报告协议 (Protocol)
-
-`Strategy.js` 每一轮输出的 JSON 结构，用于衔接 LLM 或 离线决策器：
-
+```javascript
+const nextDepth = result.formedMill ? depth : depth - 1;
 ```
-{
-  "context": {
-    "phase": "MOVING",
-    "materialDiff": 1,
-    "isOpponentNearFlying": true
-  },
-  "metrics": {
-    "mobilityGap": 7,
-    "tensionScore": 45
-  },
-  "suggestedMoves": [
-    {
-      "move": {"from": 10, "to": 3},
-      "score": 95,
-      "tags": ["BLOCK", "SQUEEZE"],
-      "description": "占据中心枢纽，锁死对方逃逸路径"
-    }
-  ]
+
+This ensures "form mill + capture" costs exactly one depth level, matching the logical turn structure.
+
+### 3.3 Move Ordering for Pruning Efficiency
+
+Moves are sorted by a lightweight heuristic before traversal to maximize alpha-beta cutoffs:
+
+- **Capture (remove)**: priority 1000
+- **Mill formation**: priority 500 (detected via lightweight board simulation + `E.isInMill`)
+- **Placement**: priority 10
+
+The mill detection temporarily sets `board[to] = player` and checks `isInMill` without calling `makeMove`, keeping the overhead minimal.
+
+### 3.4 Time Management
+
+- Max think time: 5 seconds
+- Checked every 1000 nodes in minimax
+- Checked at the start of each root move iteration
+- Incomplete results (from mid-evaluation timeout) are discarded
+
+## 4. Static Evaluation
+
+### 4.1 Base Weights
+
+| Factor | Weight | Notes |
+|--------|--------|-------|
+| material | 150 | Per piece advantage |
+| mobility | 2 | Safe move count |
+| threat | 15 | Potential mill (NEAR_MILL) |
+| fork | 30 | Dual threat (base, modified by flying phase) |
+| mill | 40 | Formed mill |
+| nearMill | 20 | One step from mill (own) |
+| opponentNearMill | −30 | One step from mill (opponent) |
+
+### 4.2 Phase-Aware Weight Smoothing
+
+Material and mobility weights transition smoothly across game phases via `phaseFactor` (0 = early placement, 1 = moving/flying):
+
+- `materialW = 150 * (1 − phaseFactor * 0.3)` — material weight reduces 30% in late game
+- `mobilityW = 2 * (1 + phaseFactor * 2)` — mobility weight triples in late game
+
+### 4.3 Asymmetric Flying Phase Fork Weighting
+
+When a player enters flying phase (≤3 pieces on board, 0 on hand), the geometric "fork" structure loses tactical meaning because the opponent can fly away. However, if only one side is flying, the multi-piece side should **enhance** fork weight to drive fork-based kills.
+
+Detection (must check both `piecesOnBoard` and `piecesOnHand` to avoid false positives during placement):
+
+```javascript
+const aiFlying = ai.piecesOnBoard <= 3 && ai.piecesOnHand === 0;
+const oppFlying = opponent.piecesOnBoard <= 3 && opponent.piecesOnHand === 0;
+```
+
+Weight matrix:
+
+| Scenario | AI fork | Opponent fork |
+|----------|---------|---------------|
+| Both >3 pieces | 30 | 30 |
+| Both flying (≤3) | 0 | 0 |
+| AI >3, opponent flying | **60** | 0 |
+| AI flying, opponent >3 | 0 | **60** |
+
+The multi-piece side gets doubled fork weight to aggressively seek fork-based kills against the flying opponent.
+
+### 4.4 Other Evaluation Factors
+
+- **Fly threat**: ±50 penalty when opponent/AI enters flying phase
+- **Desperation bonus**: +20 when material deficit ≥ 3 (encourages risk-taking)
+
+## 5. Move Selection: Rank-Based Exponential Distribution
+
+### 5.1 The Problem with Score-Based Softmax
+
+A naive softmax over raw scores fails catastrophically when score gaps are large (e.g., mill capture at +240 vs normal move at +40). Even at temperature 3.0, the second-best move gets probability ≈ 0, eliminating all randomness.
+
+### 5.2 Solution: Top-k + Rank-Based Exponential
+
+```javascript
+function pickWithWeightedRandom(sorted, temperature, topK) {
+    const candidates = sorted.slice(0, Math.min(topK, sorted.length));
+    const weights = candidates.map((_, i) => Math.exp(-i / temperature));
+    // roulette wheel selection
 }
-
 ```
 
-## 6. 心理博弈：陷阱机制 (The Trap Mechanism)
+- **Top-k truncation** (default 3): eliminates catastrophic moves from the candidate pool
+- **Rank-based weights**: `exp(-i / temperature)` — completely independent of score magnitude
+- **Tie-breaking**: equal scores are shuffled via `Math.random() - 0.5` in the sort comparator to prevent stable sort bias
 
-为了模拟人类“赌徒”心理，AI 引入了**深度差（Depth Gap）评估**：
+### 5.3 Progressive Determinism
 
--   **陷阱定义**：如果一步棋在 $D=2$（浅层搜索）评分极低，但在 $D=8$（深层搜索）评分极高，则标记为 `HiddenTrap`。
-    
--   **执行策略**：根据玩家的历史表现或随机概率，AI 会故意跳入看似“失误”的陷阱，并利用 LLM 配合诱导性台词：“这步棋我大意了，你敢吃吗？”
-    
+Temperature varies by game phase to balance exploration and exploitation:
 
-## 7. 离线兼容性设计
+| Mode | PLACEMENT | MOVING | FLYING | Top-k |
+|------|-----------|--------|--------|-------|
+| Eco | 0.8 | 0.8 | 0.8 | 2 |
+| Normal | 0.3 | 0.3 | 0.3 | 3 |
+| Master | 0.25 | 0.02 | 0.00 | 2 |
 
--   **统一接口**：`Strategy.js` 的输出对离线/在线完全一致。
-    
--   **话术回退**：离线时，`Narrator.js` 根据 `tags` 从本地预设的性格词库中随机抽取对白。
-    
--   **算法稳定性**：即使没有 LLM 的策略建议，依靠 `suggestedMoves` 的原始评分，AI 依然维持宗师级的竞技水平。
-    
+- **Eco**: constant high randomness, simulates human intuition and occasional mistakes
+- **Normal**: moderate randomness throughout
+- **Master**: opening diversity (0.25) to avoid echo chamber effects in mirror matches, near-deterministic in mid-game (0.02), fully deterministic in flying phase (0.00)
 
-## 8. 开发路线图 (Roadmap)
+Temperature resolution supports both scalar (fixed) and object (phase-mapped) formats via `resolveTemperature`.
 
-1.  **[已完成]** `Engine.js` 核心规则与 `makeMove`。
-    
-2.  **[进行中]** 为 `Engine.js` 补充 `undoMove` 逻辑。
-    
-3.  **[待启动]** 实现 `Strategy.js` 的机动性压制算法与战术报告生成器。
-    
-4.  **[待启动]** 接入 LLM 接口，编写各阶段性格 Prompt。
+## 6. Strategy State Machine
+
+Three modes triggered by game context:
+
+| Mode | Trigger | Behavior |
+|------|---------|----------|
+| **Expansion** | Default / placement phase | Occupy high-connectivity hubs, build potential mill networks |
+| **Suppression** | Moving phase, mobility advantage | Block opponent escape paths, prevent flying transition |
+| **Decisive** | Material deficit, opponent near flying, or flying phase | Max search depth, seek fastest kill path via double mills |
+
+Mode determination uses `report.context.phase`, `materialDiff`, `isOpponentNearFlying`, and `metrics.mobilityGap`.
+
+## 7. Trap Detection (Depth Gap Evaluation)
+
+Identifies "hidden traps": moves that appear bad at shallow depth but are actually winning at deeper search.
+
+- Shallow evaluation: D=0 (static eval, near-zero cost)
+- Deep evaluation: D=shallow+2 (or custom `deepDepth`)
+- If `trapScore = deep − shallow > threshold` and `shallow < 0`, tag as `HIDDEN_TRAP`
+
+## 8. Performance Modes
+
+| Mode | Depth | Trap Check | Temperature | Top-k | Label |
+|------|-------|------------|-------------|-------|-------|
+| Eco | 1 | off | 0.8 | 2 | Lightweight |
+| Normal | 3 | on | 0.3 | 3 | Balanced |
+| Master | 4 | on | phase-mapped | 2 | Full power |
+
+Dynamic depth adjustment (when depth not explicitly specified):
+- Placement phase with many pieces on hand: depth capped at 2
+- Suppression mode: depth +1 (up to 6)
+- Decisive + Flying: depth −1 (min 2)
+
+## 9. Context Isolation
+
+In dual AI battles, `selectBestMoveForPlayer` snapshots the global config into a local variable at entry to prevent temperature/topK cross-contamination between players:
+
+```javascript
+const config = { ...currentConfig };
+```
+
+All downstream references (depth, temperature, topK, label) use this local snapshot.
+
+## 10. Fallback Safety
+
+Multiple fallback layers ensure the main decision interface never returns null:
+
+1. `moves.length === 0` → return null (no legal moves, game should be over)
+2. Timeout with empty `moveScores` → return first legal move with score 0
+3. `pickWithWeightedRandom` returns null → return first legal move with score 0
+
+## 11. Test Infrastructure
+
+- `test/battle.js`: Dual AI battle runner with per-move logging (board state, score, tags, strategy, timing)
+- `test/run_battles.sh`: 24-round tournament (3 modes × all pairings × 4 rounds alternating first player)
+- Typical results: Master > Normal > Eco, no draws in normal play, game lengths 20-90 hands
+
+## 12. Design Decisions Log
+
+| Decision | Rationale |
+|----------|-----------|
+| formedMill depth fix | Prevents horizon effect where AI misses opponent captures at depth boundary |
+| Rank-based exponential | Eliminates score-magnitude-dependent probability collapse in softmax |
+| Progressive determinism | Opening diversity prevents echo chamber; late-game determinism prevents blunders |
+| Asymmetric fork weights | Multi-piece side needs enhanced fork to kill flying opponent; flying side fork is meaningless |
+| Top-k truncation | Prevents catastrophic moves from entering the random selection pool |
+| Tie-breaking shuffle | Prevents stable sort from creating unfair rank discrimination among equal-score moves |
