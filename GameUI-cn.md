@@ -88,7 +88,7 @@ index.html          style.css            game.js
 
 ### 3.1 CSS 变量（:root）
 
-变量按主题切换需求分组，替换主题只需覆盖 `:root` 即可。
+变量按主题切换需求分组。默认主题定义在 `:root`，马卡龙主题通过 `[data-theme="macaron"]` 选择器覆盖。新增主题只需添加对应选择器并覆盖变量即可。
 
 **主题色（UI chrome）：**
 | 变量 | 值 | 用途 |
@@ -358,6 +358,7 @@ doAITurn()
 |-------|-----|-----|------|
 | 难度 | `difficulty` | `Eco` / `Normal` / `Master` | `localStorage('nmm-settings')` |
 | 先手 | `firstPlayer` | `opponent` / `ai` | 同上 |
+| 主题 | `theme` | `default` / `macaron` | 同上 |
 
 按钮点击循环切换选项，变更后立即 `newGame()` 重新开始。
 
@@ -365,6 +366,9 @@ doAITurn()
 - `Eco` → 菜鸟 (depth 1)
 - `Normal` → 老手 (depth 3)
 - `Master` → 大师 (depth 4)
+
+**主题切换：**
+通过 `document.documentElement.dataset.theme` 控制，`default` 清空属性，`macaron` 设置为 `data-theme="macaron"`。CSS 中 `[data-theme="macaron"]` 选择器覆盖所有颜色变量。
 
 ### 4.7 Debug 模式
 

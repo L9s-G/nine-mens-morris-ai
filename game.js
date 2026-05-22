@@ -609,14 +609,19 @@ const Game = (() => {
         { key: 'ai',       label: 'AI 先手' }
     ];
 
-    const DEFAULT_SETTINGS = { difficulty: 'Normal', firstPlayer: 'opponent' };
+    const THEMES = [
+        { key: 'default',  label: '暗夜' },
+        { key: 'macaron',  label: '马卡龙' }
+    ];
+
+    const DEFAULT_SETTINGS = { difficulty: 'Normal', firstPlayer: 'opponent', theme: 'default' };
     let settings = { ...DEFAULT_SETTINGS };
 
     function loadSettings() {
         try {
             const saved = JSON.parse(localStorage.getItem('nmm-settings'));
             if (saved && DIFFICULTIES.some(d => d.key === saved.difficulty) && FIRST_PLAYERS.some(f => f.key === saved.firstPlayer)) {
-                settings = saved;
+                settings = { ...DEFAULT_SETTINGS, ...saved };
             }
         } catch (e) {}
     }
@@ -628,6 +633,7 @@ const Game = (() => {
     function applySettings() {
         const diffBtn = document.getElementById('btn-difficulty');
         const firstBtn = document.getElementById('btn-first-player');
+        const themeBtn = document.getElementById('btn-theme');
         diffBtn.dataset.value = settings.difficulty;
         firstBtn.dataset.value = settings.firstPlayer;
         firstBtn.textContent = FIRST_PLAYERS.find(f => f.key === settings.firstPlayer).label;
@@ -639,6 +645,11 @@ const Game = (() => {
 
         // AI 先手时，黑子行（AI）显示在上面
         document.getElementById('player-status').classList.toggle('ai-first', settings.firstPlayer === 'ai');
+
+        // 主题
+        themeBtn.dataset.value = settings.theme;
+        themeBtn.textContent = THEMES.find(t => t.key === settings.theme).label;
+        document.documentElement.dataset.theme = settings.theme === 'default' ? '' : settings.theme;
     }
 
     function cycleButton(btnId, options, callback) {
@@ -661,6 +672,7 @@ const Game = (() => {
         if (overrides) {
             if (overrides.difficulty) settings.difficulty = overrides.difficulty;
             if (overrides.firstPlayer) settings.firstPlayer = overrides.firstPlayer;
+            if (overrides.theme) settings.theme = overrides.theme;
             saveSettings();
         }
 
@@ -704,6 +716,7 @@ const Game = (() => {
         document.getElementById('btn-result-new-game').addEventListener('click', () => newGame());
         cycleButton('btn-difficulty', DIFFICULTIES, (val) => newGame({ difficulty: val }));
         cycleButton('btn-first-player', FIRST_PLAYERS, (val) => newGame({ firstPlayer: val }));
+        cycleButton('btn-theme', THEMES, (val) => newGame({ theme: val }));
 
         // 双击棋盘中心切换 Debug 模式
         document.getElementById('board').addEventListener('dblclick', (e) => {

@@ -36,6 +36,7 @@
     --color-thinking: #81d4fa;
 
     /* 圆点色 */
+    --color-dot-white-hand: #f0f0f0;
     --color-dot-black: #555;
     --color-dot-black-board: #888;
     --color-dot-lost: #555;
@@ -56,6 +57,61 @@
 
     /* 尺寸 */
     --radius: 8px;
+}
+
+/* ==================== Variables (Macaron) ==================== */
+
+[data-theme="macaron"] {
+    /* 主题色 */
+    --color-bg: #f5f2eb;
+    --color-surface: #ffffff;
+    --color-text: #2f2524;
+    --color-text-dim: #6b5c5b;
+    --color-accent: #ff9a9e;
+    --color-border: #e3dac9;
+    --color-border-dark: #d1c4ae;
+    --color-hover: rgba(255, 154, 158, 0.12);
+    --color-active: rgba(255, 154, 158, 0.22);
+    --color-overlay: rgba(47, 37, 36, 0.4);
+
+    /* 棋盘色 */
+    --color-board-face: #fdfaf2;
+    --color-board-stroke: #c2b49a;
+    --color-board-line: #5d7a68;
+    --color-board-hover: #e2ede4;
+    --color-board-highlight: #ffe3d1;
+
+    /* 棋子色 */
+    --color-white: #ffffff;
+    --color-white-stroke: #bdae9f;
+    --color-black: #4a90e2;
+    --color-black-stroke: #2a6cb3;
+    --color-capture: #ff4081;
+    --color-capture-glow: #ff4081;
+    --color-thinking: #ff9a9e;
+
+    /* 圆点色 */
+    --color-dot-white-hand: #f9f5eb;
+    --color-dot-black: #4a90e2;
+    --color-dot-black-board: #2a6cb3;
+    --color-dot-lost: #a39687;
+
+    /* 气泡 / 弹幕色 */
+    --color-bubble: #f3edf5;
+    --color-danmaku: #4a3b70;
+
+    /* 棋子阴影色板 */
+    --shadow-warm: rgba(93, 74, 68, 0.25);
+    --shadow-black: rgba(30, 50, 80, 0.3);
+    --highlight-white: rgba(255, 255, 255, 1);
+    --highlight-soft: rgba(255, 255, 255, 0.5);
+    --shadow-ambient: rgba(140, 130, 120, 0.15);
+    --shadow-board: rgba(93, 74, 68, 0.15);
+    --shadow-danmaku: rgba(255, 255, 255, 0.9);
+    --shadow-modal: rgba(47, 37, 36, 0.12);
+
+    /* 尺寸 */
+    --radius: 12px;
 }
 
 /* ==================== Reset ==================== */
@@ -113,7 +169,7 @@ html, body {
 }
 
 .board-dot {
-    fill: var(--color-bg);
+    fill: var(--color-board-line);
     stroke: none;
     pointer-events: none;
 }
@@ -265,8 +321,11 @@ html, body {
 .dot.board { background: transparent !important; }
 .dot.lost  { background: transparent !important; border: 2px dashed var(--color-dot-lost); }
 
-.dot-white.hand  { background: var(--color-white); }
-.dot-white.board { border: 2px solid var(--color-white); }
+.dot-white.hand  {
+    background: var(--color-dot-white-hand);
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(93, 74, 68, 0.15);
+}
+.dot-white.board { border: 2px solid var(--color-white-stroke); }
 .dot-black.hand  { background: var(--color-dot-black); }
 .dot-black.board { border: 2px solid var(--color-dot-black-board); }
 
@@ -473,7 +532,7 @@ html, body {
 }
 
 .modal-buttons button:hover {
-    background: rgba(79, 195, 247, 0.15);
+    background: var(--color-hover);
 }
 
 .modal-buttons .hidden {
