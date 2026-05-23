@@ -59,56 +59,56 @@
     --radius: 8px;
 }
 
-/* ==================== Variables (Macaron) ==================== */
+/* ==================== Variables (Macaron Premium) ==================== */
 
 [data-theme="macaron"] {
-    /* 主题色 */
-    --color-bg: #f5f2eb;
+    /* 主题色：干净的奶油白与轻熟粉蓝 */
+    --color-bg: #f2f5f8;
     --color-surface: #ffffff;
-    --color-text: #2f2524;
-    --color-text-dim: #6b5c5b;
-    --color-accent: #ff9a9e;
-    --color-border: #e3dac9;
-    --color-border-dark: #d1c4ae;
-    --color-hover: rgba(255, 154, 158, 0.12);
-    --color-active: rgba(255, 154, 158, 0.22);
-    --color-overlay: rgba(47, 37, 36, 0.4);
+    --color-text: #2c3e50;
+    --color-text-dim: #7f8c8d;
+    --color-accent: #ff7597;
+    --color-border: #e9ecef;
+    --color-border-dark: #dee2e6;
+    --color-hover: rgba(255, 117, 151, 0.1);
+    --color-active: rgba(255, 117, 151, 0.2);
+    --color-overlay: rgba(44, 62, 80, 0.3);
 
-    /* 棋盘色 */
-    --color-board-face: #fdfaf2;
-    --color-board-stroke: #c2b49a;
-    --color-board-line: #5d7a68;
-    --color-board-hover: #e2ede4;
+    /* 棋盘色：薄荷冰沙 */
+    --color-board-face: #eaf7f4;
+    --color-board-stroke: #bfe3db;
+    --color-board-line: #8ccfcf;
+    --color-board-hover: #d2f0ea;
     --color-board-highlight: #ffe3d1;
 
-    /* 棋子色 */
+    /* 棋子色：香草奶霜 vs 蓝莓慕斯 */
     --color-white: #ffffff;
-    --color-white-stroke: #bdae9f;
-    --color-black: #4a90e2;
-    --color-black-stroke: #2a6cb3;
-    --color-capture: #ff4081;
-    --color-capture-glow: #ff4081;
-    --color-thinking: #ff9a9e;
+    --color-white-stroke: #d0d7de;
+    --color-black: #5dade2;
+    --color-black-stroke: #3498db;
+    --color-capture: #ff2a6d;
+    --color-capture-glow: rgba(255, 42, 109, 0.4);
+    --color-thinking: #ff7597;
 
     /* 圆点色 */
-    --color-dot-white-hand: #f9f5eb;
-    --color-dot-black: #4a90e2;
-    --color-dot-black-board: #2a6cb3;
-    --color-dot-lost: #a39687;
+    --color-dot-white-hand: #ffffff;
+    --color-dot-black: #5dade2;
+    --color-dot-black-board: #3498db;
+    --color-dot-lost: #bdc3c7;
 
     /* 气泡 / 弹幕色 */
-    --color-bubble: #f3edf5;
-    --color-danmaku: #4a3b70;
+    --color-bubble: #f4eff7;
+    --color-danmaku: #6c5ce7;
 
-    /* 棋子阴影色板 */
-    --shadow-warm: rgba(93, 74, 68, 0.25);
-    --shadow-black: rgba(30, 50, 80, 0.3);
+    /* 阴影色板：同色系微弱阴影与强高光 */
+    --shadow-warm: rgba(165, 175, 185, 0.2);
+    --shadow-black: rgba(52, 152, 219, 0.25);
     --highlight-white: rgba(255, 255, 255, 1);
-    --highlight-soft: rgba(255, 255, 255, 0.5);
-    --shadow-ambient: rgba(140, 130, 120, 0.15);
-    --shadow-board: rgba(93, 74, 68, 0.15);
+    --highlight-soft: rgba(255, 255, 255, 0.6);
+    --shadow-ambient: rgba(0, 0, 0, 0.04);
+    --shadow-board: rgba(165, 175, 185, 0.15);
     --shadow-danmaku: rgba(255, 255, 255, 0.9);
-    --shadow-modal: rgba(47, 37, 36, 0.12);
+    --shadow-modal: rgba(44, 62, 80, 0.1);
 
     /* 尺寸 */
     --radius: 12px;
@@ -199,56 +199,41 @@ html, body {
     filter: url(#inset-shadow);
 }
 
-/* ==================== Pieces ==================== */
+/* ==================== Pieces (Premium Macaron) ==================== */
 
 .piece {
     r: 22;
-    stroke-width: 1.5;
+    stroke-width: 2;
     pointer-events: none;
-    transition: all 0.2s ease;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .piece-white {
     fill: var(--color-white);
     stroke: var(--color-white-stroke);
-    filter:
-        drop-shadow(4px 4px 5px var(--shadow-warm))
-        drop-shadow(-1px -1px 1px var(--highlight-white))
-        drop-shadow(1px 1px 2px var(--shadow-ambient));
+    filter: drop-shadow(0 4px 6px var(--shadow-warm));
 }
 
 .piece-black {
     fill: var(--color-black);
     stroke: var(--color-black-stroke);
-    filter:
-        drop-shadow(4px 4px 5px var(--shadow-black))
-        drop-shadow(-1.5px -1.5px 1px var(--highlight-soft));
+    filter: drop-shadow(0 4px 6px var(--shadow-black));
 }
 
 .piece.selected {
     stroke: var(--color-accent);
-    stroke-width: 3;
-    filter:
-        drop-shadow(4px 4px 5px var(--shadow-warm))
-        drop-shadow(-1px -1px 1px var(--highlight-white))
-        drop-shadow(1px 1px 2px var(--shadow-ambient))
-        drop-shadow(0 0 6px var(--color-accent));
+    stroke-width: 3.5;
+    filter: drop-shadow(0 0 12px var(--color-accent));
 }
 
 .piece.capture {
     stroke: var(--color-capture);
-    stroke-width: 3;
-    filter:
-        drop-shadow(4px 4px 5px var(--shadow-warm))
-        drop-shadow(-1px -1px 1px var(--highlight-white))
-        drop-shadow(1px 1px 2px var(--shadow-ambient))
-        drop-shadow(0 0 8px var(--color-capture-glow));
+    stroke-width: 3.5;
+    filter: drop-shadow(0 0 12px var(--color-capture));
 }
 
 .piece.captured {
     animation: capture-flash 0.6s ease-in forwards;
-    transform-origin: center;
-    transform-box: fill-box;
 }
 
 @keyframes capture-flash {
@@ -300,21 +285,20 @@ html, body {
 
 .player-label {
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 600;
     min-width: 32px;
-    color: var(--color-text-dim);
+    color: var(--color-text);
 }
 
 .piece-dots {
     display: flex;
-    gap: 5px;
+    gap: 6px;
 }
 
 .dot {
     width: 16px;
     height: 16px;
     border-radius: 50%;
-    border: 2px solid transparent;
     transition: all 0.2s;
 }
 
@@ -322,11 +306,14 @@ html, body {
 .dot.lost  { background: transparent !important; border: 2px dashed var(--color-dot-lost); }
 
 .dot-white.hand  {
-    background: var(--color-dot-white-hand);
-    box-shadow: inset 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(93, 74, 68, 0.15);
+    background: #ffffff;
+    border: 2px solid var(--color-white-stroke);
 }
 .dot-white.board { border: 2px solid var(--color-white-stroke); }
-.dot-black.hand  { background: var(--color-dot-black); }
+.dot-black.hand  {
+    background: var(--color-dot-black);
+    border: 2px solid var(--color-dot-black-board);
+}
 .dot-black.board { border: 2px solid var(--color-dot-black-board); }
 
 /* AI 思考走马灯 */

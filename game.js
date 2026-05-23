@@ -716,7 +716,7 @@ const Game = (() => {
         document.getElementById('btn-result-new-game').addEventListener('click', () => newGame());
         cycleButton('btn-difficulty', DIFFICULTIES, (val) => newGame({ difficulty: val }));
         cycleButton('btn-first-player', FIRST_PLAYERS, (val) => newGame({ firstPlayer: val }));
-        cycleButton('btn-theme', THEMES, (val) => newGame({ theme: val }));
+        cycleButton('btn-theme', THEMES, (val) => { settings.theme = val; saveSettings(); applySettings(); });
 
         // 双击棋盘中心切换 Debug 模式
         document.getElementById('board').addEventListener('dblclick', (e) => {
