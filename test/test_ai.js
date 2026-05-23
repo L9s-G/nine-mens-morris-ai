@@ -44,8 +44,8 @@ const score2 = AI.evaluatePosition();
 assert(score2 > 0, `AI 有优势时评估应为正，实际: ${score2}`);
 
 // --- Test 3: 策略模式判断 ---
-const report = Strategy.generateReport();
-const mode = AI.determineMode(report);
+const context = AI.getPlayerContext(Engine.TYPE_AI);
+const mode = AI.determineMode(context);
 assert(
     mode === AI.MODE_EXPANSION || mode === AI.MODE_SUPPRESSION || mode === AI.MODE_DECISIVE,
     `策略模式应为有效值，实际: ${mode}`
@@ -58,7 +58,6 @@ assert(result !== null, "selectBestMove 应返回结果");
 assert(result.move !== null, "应选择一个走法");
 assert(typeof result.score === 'number', "分数应为数字");
 assert(result.mode !== undefined, "应包含策略模式");
-assert(result.report !== undefined, "应包含战术报告");
 
 // --- Test 5: AI 选择的走法应该是合法走法 ---
 const legalMoves = Engine.generateLegalMoves(Engine.TYPE_AI);

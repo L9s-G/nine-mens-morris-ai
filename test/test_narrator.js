@@ -56,17 +56,17 @@ assert(typeof desperateLine === 'string', '劣势情绪台词应为字符串');
 
 // --- Test 5: 在线 Prompt 生成 ---
 Engine.init();
-const report = Strategy.generateReport();
-const prompt = Narrator.createPrompt(report, mockMove, AI.MODE_EXPANSION);
+const mockContext = { phase: 'PLACEMENT', forceDiff: 0, mobilityGap: 0 };
+const prompt = Narrator.createPrompt(mockMove, AI.MODE_EXPANSION, mockContext);
 assert(prompt.role === 'system', 'Prompt 应有 system role');
 assert(prompt.content.includes('宗师'), 'Prompt 应包含角色描述');
 assert(prompt.content.includes('EXPANSION'), 'Prompt 应包含策略模式');
 
 // --- Test 6: 统一接口 ---
-const offlineResult = Narrator.getLine(report, mockMove, 'EXPANSION', false);
+const offlineResult = Narrator.getLine(mockMove, 'EXPANSION', false);
 assert(typeof offlineResult === 'string', '离线模式应返回字符串');
 
-const onlineResult = Narrator.getLine(report, mockMove, 'EXPANSION', true);
+const onlineResult = Narrator.getLine({ ...mockMove, context: mockContext }, 'EXPANSION', true);
 assert(typeof onlineResult === 'object', '在线模式应返回对象');
 assert(onlineResult.role === 'system', '在线模式应返回 Prompt 对象');
 
@@ -78,7 +78,7 @@ const aiResult = AI.selectBestMove(2);
 assert(aiResult !== null, 'AI 应返回结果');
 
 // 2. 获取台词（离线）
-const aiLine = Narrator.getLine(aiResult.report, aiResult.allScores[0], aiResult.mode, false);
+const aiLine = Narrator.getLine(aiResult.allScores[0], aiResult.mode, false);
 assert(typeof aiLine === 'string' && aiLine.length > 0, 'AI 台词应为非空字符串');
 console.log(`  AI 台词: "${aiLine}"`);
 

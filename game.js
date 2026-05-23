@@ -334,7 +334,7 @@ const Game = (() => {
 
         // AI 台词
         const bestScore = result.allScores.length > 0 ? result.allScores[0] : null;
-        const line = Narrator.getLine(result.report, {
+        const line = Narrator.getLine({
             score: result.score,
             tags: bestScore ? bestScore.tags : []
         }, result.mode);

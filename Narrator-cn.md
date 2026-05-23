@@ -254,15 +254,15 @@ function hasCombo(tags, comboKey) {
 ## 8. 公开接口
 
 ```javascript
-Narrator.getLine(report, bestMove, mode, isOnline)
+Narrator.getLine(bestMove, mode, isOnline)
 // 统一入口。isOnline=false 返回字符串，isOnline=true 返回 Prompt 对象
 // 情绪由 bestMove.score 驱动
 
 Narrator.getOfflineLine(bestMove, mode, score)
 // 离线台词生成（score 为 minimax 评估分）
 
-Narrator.createPrompt(report, bestMove, mode)
-// 在线 Prompt 生成
+Narrator.createPrompt(bestMove, mode, context)
+// 在线 Prompt 生成。context = { phase, forceDiff, mobilityGap }
 
 Narrator.getEmotion(score)
 // minimax 评分 → 情绪字符串
@@ -278,20 +278,15 @@ Narrator.getEmotion(score)
 }
 ```
 
-### 8.2 report 结构
+### 8.2 context 结构（在线模式用）
 
 ```javascript
+// 由 AI.getPlayerContext(player) 生成
 {
-    context: {
-        phase: 'MOVING',
-        forceDiff: 2,          // 兵力差
-        isOpponentNearFlying: false,
-        desperationLevel: 0
-    },
-    metrics: {
-        mobilityGap: 3,
-        tensionScore: 15
-    }
+    phase: 'MOVING',              // PLACEMENT / MOVING / FLYING
+    forceDiff: 2,                 // 兵力差
+    isOpponentNearFlying: false,  // 对手是否接近飞行
+    mobilityGap: 3                // 机动性差值
 }
 ```
 

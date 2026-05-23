@@ -370,8 +370,11 @@ const Narrator = (() => {
 
     /**
      * 在线模式：生成给 LLM 的 System Prompt
+     * @param {object} bestMove - { score, tags, description }
+     * @param {string} mode - 策略模式
+     * @param {object} context - { phase, forceDiff, mobilityGap }
      */
-    function createPrompt(report, bestMove, mode) {
+    function createPrompt(bestMove, mode, context) {
         const emotion = getEmotion(bestMove.score);
 
         return {
@@ -379,14 +382,14 @@ const Narrator = (() => {
             content: `你是一位Nine Men's Morris宗师，性格冷酷而自信。
 
 当前博弈状态：
-- 阶段：${report.context.phase}
+- 阶段：${context.phase}
 - 策略模式：${mode}
-- 兵力差：${report.context.forceDiff}（正=你优势，负=对手优势）
-- 机动性差值：${report.metrics.mobilityGap}
+- 兵力差：${context.forceDiff}（正=你优势，负=对手优势）
+- 机动性差值：${context.mobilityGap}
 - 情绪基调：${emotion}
 
-你刚做出的走法：${bestMove.description}
-走法标签：${bestMove.tags.join(', ')}
+你刚做出的走法：${bestMove.description || ''}
+走法标签：${(bestMove.tags || []).join(', ')}
 
 要求：
 1. 生成一句简短（20字以内）的宗师点评
@@ -400,17 +403,17 @@ const Narrator = (() => {
 
     /**
      * 获取台词
-     * @param {object} report - 战术报告
      * @param {object} bestMove - AI 选择的最佳走法（含 score, tags）
      * @param {string} mode - 策略模式
      * @param {boolean} isOnline - 是否在线模式
      * @returns {string|object} 离线返回字符串，在线返回 Prompt 对象
      */
-    function getLine(report, bestMove, mode, isOnline = false) {
+    function getLine(bestMove, mode, isOnline = false) {
         if (!isOnline) {
             return getOfflineLine(bestMove, mode, bestMove.score);
         }
-        return createPrompt(report, bestMove, mode);
+        // 在线模式需要额外的 context，从 AI.getPlayerContext() 获取
+        return createPrompt(bestMove, mode, bestMove.context || {});
     }
 
     // ==================== 公开接口 ====================

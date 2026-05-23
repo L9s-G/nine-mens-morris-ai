@@ -239,10 +239,34 @@ const AI = (() => {
 
     // ==================== 策略状态机 ====================
 
-    function determineMode(report) {
-        const { context, metrics } = report;
-        const { phase, forceDiff, isOpponentNearFlying } = context;
-        const { mobilityGap } = metrics;
+    /**
+     * 直接从 Engine 状态计算玩家上下文（替代 generateReport）
+     */
+    function getPlayerContext(player) {
+        const state = E.getRawState();
+        const playerData = player === E.TYPE_AI ? state.playerAI : state.playerOpponent;
+        const oppData = player === E.TYPE_AI ? state.playerOpponent : state.playerAI;
+        const opp = player === E.TYPE_AI ? E.TYPE_OPPONENT : E.TYPE_AI;
+
+        let phase = 'PLACEMENT';
+        if (playerData.piecesOnHand === 0) {
+            phase = playerData.piecesOnBoard === 3 ? 'FLYING' : 'MOVING';
+        }
+
+        const forceDiff = playerData.piecesOnBoard - oppData.piecesOnBoard;
+        const isOpponentNearFlying = oppData.piecesOnBoard === 3 && oppData.piecesOnHand === 0;
+        const playerMobility = S.calculateEffectiveMobility(player);
+        const oppMobility = S.calculateEffectiveMobility(opp);
+        const mobilityGap = playerMobility.safe - oppMobility.safe;
+
+        return { phase, forceDiff, isOpponentNearFlying, mobilityGap };
+    }
+
+    /**
+     * 根据上下文决定策略模式
+     */
+    function determineMode(context) {
+        const { phase, forceDiff, isOpponentNearFlying, mobilityGap } = context;
 
         if (forceDiff < -1 || isOpponentNearFlying || phase === 'FLYING') {
             return MODE_DECISIVE;
@@ -344,7 +368,7 @@ const AI = (() => {
      * 为指定玩家选择最佳走法（支持双人对战）
      * @param {number} player - TYPE_OPPONENT 或 TYPE_AI
      * @param {number} [depth] - 搜索深度（默认使用当前配置）
-     * @returns {{ move: object, score: number, mode: string, report: object, stats: object }}
+     * @returns {{ move: object, score: number, mode: string, allScores: Array, stats: object }}
      */
     function selectBestMoveForPlayer(player, depth) {
         const config = { ...currentConfig };
@@ -356,8 +380,8 @@ const AI = (() => {
         const startTime = Date.now();
         searchStartTime = startTime;
 
-        const report = S.generateReport();
-        const mode = determineMode(report);
+        const context = getPlayerContext(player);
+        const mode = determineMode(context);
 
         // 动态深度分配：根据策略模式调整搜索深度
         if (!depth) { // 仅在未指定深度时动态调整
@@ -366,7 +390,7 @@ const AI = (() => {
             const hand = playerData.piecesOnHand;
 
             // 放置阶段：分支因子高，限制深度，后期平滑过渡到预设值
-            if (report.context.phase === 'PLACEMENT' && d > 2) {
+            if (context.phase === 'PLACEMENT' && d > 2) {
                 const d_min = 2;
                 if (hand >= 6) {
                     d = d_min;
@@ -377,7 +401,7 @@ const AI = (() => {
 
             if (mode === MODE_SUPPRESSION) {
                 d = Math.min(d + 1, 6); // 压制模式：分支因子小，+1 层
-            } else if (mode === MODE_DECISIVE && report.context.phase === 'FLYING') {
+            } else if (mode === MODE_DECISIVE && context.phase === 'FLYING') {
                 d = Math.max(d - 1, 2); // 飞行模式：分支因子爆炸，-1 层
             }
         }
@@ -429,13 +453,17 @@ const AI = (() => {
 
                 if (timeLimitReached) break;
 
-                const reportEntry = report.suggestedMoves.find(
-                    r => r.move.from === move.from && r.move.to === move.to && r.move.remove === move.remove
-                );
-                const tags = reportEntry ? reportEntry.tags : [];
-                const finalScore = applyModeBonus(rawScore, tags, mode);
+                // 用 evaluateMove 为走法生成标签（替代 report.suggestedMoves 查找）
+                // TODO: applyModeBonus 与 evaluatePosition 存在重复加分，后续评估是否移除
+                const ev = S.evaluateMove(move, player);
 
-                iterScores.push({ move, score: finalScore, rawScore, tags });
+                // 根据上下文追加语义标签（原先由 generateReport 添加）
+                if (context.phase === 'PLACEMENT' && ev.tags.includes('HUB_CONTROL')) {
+                    ev.tags.push('LAYOUT');
+                }
+                const finalScore = applyModeBonus(rawScore, ev.tags, mode);
+
+                iterScores.push({ move, score: finalScore, rawScore, tags: ev.tags });
             }
 
             // 本层完整评估了所有走法 → 保存结果，继续下一层
@@ -456,7 +484,6 @@ const AI = (() => {
                 move: moves[0],
                 score: 0,
                 mode,
-                report,
                 allScores: [],
                 stats: {
                     depth: completedDepth,
@@ -476,7 +503,7 @@ const AI = (() => {
         });
 
         // 基于排名的指数分布随机选择
-        const effectiveTemp = resolveTemperature(config.temperature, report.context.phase);
+        const effectiveTemp = resolveTemperature(config.temperature, context.phase);
         const chosen = pickWithWeightedRandom(moveScores, effectiveTemp, config.topK);
 
         // 兜底防线：确保主决策接口不返回 null
@@ -486,7 +513,6 @@ const AI = (() => {
                 move: moves[0] || null,
                 score: 0,
                 mode,
-                report,
                 allScores: moveScores,
                 stats: { depth: completedDepth, nodeCount, elapsed, nodesPerMs: 0, config: config.label, timeLimited: true }
             };
@@ -498,7 +524,6 @@ const AI = (() => {
             move: chosen.move,
             score: chosen.score,
             mode,
-            report,
             allScores: moveScores,
             stats: {
                 depth: completedDepth,
@@ -567,6 +592,7 @@ const AI = (() => {
         // 核心函数
         selectBestMove,
         selectBestMoveForPlayer,
+        getPlayerContext,
         determineMode,
         evaluatePosition,
         evaluateDepthGap,

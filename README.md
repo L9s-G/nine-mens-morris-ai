@@ -25,7 +25,7 @@ A pure JavaScript Nine Men's Morris (九子棋) AI engine featuring Minimax sear
 
 ```
 ├── engine.js           # Core game engine (state, rules, move generation, undo)
-├── strategy.js         # Tactical analysis (effective mobility, formation tension, reports)
+├── strategy.js         # Tactical analysis (effective mobility, formation tension, move evaluation)
 ├── ai.js               # AI controller (minimax, alpha-beta, strategy modes, trap detection)
 ├── narrator.js         # Personality/dialogue system (offline word bank + LLM prompt)
 ├── AI-Master.md        # Master AI design specification
@@ -47,7 +47,7 @@ Four-layer module architecture using the Revealing Module Pattern (IIFE):
 
 ```
 Engine (game state, rules, move generation, undo)
-  └─ Strategy (effective mobility, formation tension, tactical reports)
+  └─ Strategy (effective mobility, formation tension, move evaluation)
        └─ AI (minimax + alpha-beta, strategy state machine, trap detection)
             └─ Narrator (emotion system, offline/online dialogue)
 ```
