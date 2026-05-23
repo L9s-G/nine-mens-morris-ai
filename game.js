@@ -333,10 +333,10 @@ const Game = (() => {
         await animateAndExecute(result.move);
 
         // AI 台词
+        const bestScore = result.allScores.length > 0 ? result.allScores[0] : null;
         const line = Narrator.getLine(result.report, {
-            tags: result.allScores.length > 0 ? result.allScores[0].tags : [],
-            risk: 'low',
-            description: ''
+            score: result.score,
+            tags: bestScore ? bestScore.tags : []
         }, result.mode);
         showAILine(line);
 

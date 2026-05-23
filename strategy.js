@@ -110,7 +110,6 @@ const Strategy = (() => {
         const opp = player === E.TYPE_OPPONENT ? E.TYPE_AI : E.TYPE_OPPONENT;
         let score = 0;
         const tags = [];
-        let risk = 'low';
 
         // --- 走前：统计对方成行机会 ---
         const oppMovesBefore = E.generateLegalMoves(opp);
@@ -180,8 +179,8 @@ const Strategy = (() => {
             }
         }
 
-        // 压制对方机动性（复用走后结果）
-        if (oppMovesAfter.length <= 3) {
+        // 压制对方机动性（复用走后结果，≤2 才有窒息感）
+        if (oppMovesAfter.length <= 2) {
             score += 15;
             tags.push('SQUEEZE');
         }
@@ -206,11 +205,10 @@ const Strategy = (() => {
         // 不安全走法（允许一定风险以换取进攻）
         if (!isSafe) {
             score -= 40;
-            risk = 'high';
             tags.push('RISKY');
         }
 
-        return { score, tags, risk };
+        return { score, tags };
     }
 
     // ==================== 战术报告生成 ====================
@@ -261,7 +259,7 @@ const Strategy = (() => {
             if (phase === 'PLACEMENT' && ev.tags.includes('HUB_CONTROL')) {
                 ev.tags.push('LAYOUT');
             }
-            if (phase === 'MOVING' && mobilityGap > 2) {
+            if (phase === 'MOVING' && mobilityGap > 4) {
                 ev.tags.push('SUPPRESSION');
             }
             if (forceDiff < -1 || phase === 'FLYING') {
@@ -275,7 +273,6 @@ const Strategy = (() => {
                 move: moves[i],
                 score: ev.score,
                 tags: ev.tags,
-                risk: ev.risk,
                 description: desc
             });
         }

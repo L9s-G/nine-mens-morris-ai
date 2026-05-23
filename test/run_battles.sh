@@ -5,6 +5,7 @@
 # 共 6 组 × 4 轮 = 24 场
 
 cd "$(dirname "$0")"
+rm -rf battle_logs
 mkdir -p battle_logs
 
 echo "=== Nine Men's Morris AI 循环赛（24 场） ==="

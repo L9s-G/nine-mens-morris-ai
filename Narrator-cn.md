@@ -14,7 +14,7 @@ Narrator 是 AI 引擎的"表达层"模块，负责将结构化战术数据转�
 Narrator 采用"词库-匹配-修饰"三层流水线：
 
 ```
-输入: bestMove.tags + mode + forceDiff
+输入: bestMove.tags + mode + score
         │
         ▼
 ┌─────────────────────┐
@@ -35,7 +35,7 @@ Narrator 采用"词库-匹配-修饰"三层流水线：
           ▼
 ┌─────────────────────┐
 │  4. 情绪修饰         │  prefix + line + suffix
-│     (forceDiff)      │  EMOTION_MODIFIERS[emotion]
+│     (score)          │  EMOTION_MODIFIERS[emotion]
 └─────────────────────┘
           │
           ▼
@@ -52,31 +52,31 @@ Narrator 采用"词库-匹配-修饰"三层流水线：
 
 | 组合 | 实战频率 | 场景描述 | 示例台词 |
 |------|---------|---------|---------|
-| `HUB_CONTROL+NEAR_MILL+ANTI_FLYING+DECISIVE_STRIKE` | 74 | 全面压制：枢纽+近磨+禁飞+致命 | "枢纽、磨坊、禁飞——你已经是个死人了。" |
-| `HUB_CONTROL+ANTI_FLYING+BLOCK+DECISIVE_STRIKE` | 42 | 枢纽禁飞封锁致命 | "心脏归我，翅膀折断，此路不通。" |
+| `HUB_CONTROL+NEAR_MILL+ANTI_FLYING+DECISIVE_STRIKE` | 74 | 全面压制：路宽+近磨+禁飞+致命 | "路在我脚下，磨坊在眼前，你飞不起来。" |
+| `HUB_CONTROL+ANTI_FLYING+BLOCK+DECISIVE_STRIKE` | 42 | 路宽+禁飞+封锁+致命 | "我的路四通八达，你的翅膀折了，退路也断了。" |
 
 #### 3 标签组合
 
 | 组合 | 实战频率 | 场景描述 | 示例台词 |
 |------|---------|---------|---------|
-| `HUB_CONTROL+NEAR_MILL+LAYOUT` | 112 | 开局抢占枢纽，布局成行 | "枢纽归我，磨坊已在路上。" |
-| `HUB_CONTROL+NEAR_MILL+ANTI_FLYING` | 79 | 枢纽+近磨+禁飞 | "三重绞杀，无处可逃。" |
-| `ANTI_FLYING+BLOCK+DECISIVE_STRIKE` | 60 | 禁飞+封锁+致命 | "飞不起来，走不动路，这就是绝境。" |
-| `HUB_CONTROL+BLOCK+LAYOUT` | 43 | 枢纽+封锁+布局 | "布局中，顺便断你一条路。" |
-| `NEAR_MILL+RISKY+DECISIVE_STRIKE` | 34 | 近磨+冒险+致命 | "高风险？不，这是必杀。" |
-| `CAPTURE+ANTI_FLYING+BLOCK` | 34 | 吃子+禁飞+封锁 | "吃你的子，折你的翅，断你的路。" |
+| `HUB_CONTROL+NEAR_MILL+LAYOUT` | 112 | 路宽+近磨+布局 | "多一条路，磨坊就近一步。" |
+| `HUB_CONTROL+NEAR_MILL+ANTI_FLYING` | 79 | 路宽+近磨+禁飞 | "路在我这边，磨坊在路上，你的翅膀也折了。" |
+| `ANTI_FLYING+BLOCK+DECISIVE_STRIKE` | 60 | 禁飞+封锁+致命 | "你说你还有几步可走？我帮你数，零。" |
+| `HUB_CONTROL+BLOCK+LAYOUT` | 43 | 路宽+封锁+布局 | "我的路越走越宽，你的路少了一条。" |
+| `NEAR_MILL+RISKY+DECISIVE_STRIKE` | 34 | 近磨+冒险+致命 | "你的磨坊我看在眼里，但我的更快。" |
+| `CAPTURE+ANTI_FLYING+BLOCK` | 34 | 吃子+禁飞+封锁 | "子少了，路断了，对了你还有翅膀……哦不好意思。" |
 
 #### 2 标签组合（子集匹配，精确组合未命中时回退）
 
 | 组合 | 实战频率 | 场景描述 | 示例台词 |
 |------|---------|---------|---------|
-| `NEAR_MILL+DECISIVE_STRIKE` | 84 | 即将成行+致命一击 | "差一子成行，而这一步，就是那最后一子。" |
+| `NEAR_MILL+DECISIVE_STRIKE` | 84 | 近磨+决战 | "差一子成行，这是我最后的机会。" |
 | `CAPTURE+BLOCK` | 63 | 吃子+封锁 | "吃子是假，封路是真。" |
-| `NEAR_MILL+ANTI_FLYING` | 52 | 近磨+禁飞 | "磨坊将成，你的棋子连飞都飞不了。" |
-| `BLOCK+DECISIVE_STRIKE` | 38 | 封锁+致命一击 | "封锁只是序曲，致命一击才是正文。" |
-| `HUB_CONTROL+DECISIVE_STRIKE` | 29 | 枢纽+致命 | "占据心脏，一击致命。" |
-| `RISKY+DECISIVE_STRIKE` | 21 | 冒险+致命 | "看似冒险，实则必杀。" |
-| `NEAR_MILL+RISKY` | 18 | 近磨+冒险 | "赌一把？赌你拦不住我成行。" |
+| `NEAR_MILL+ANTI_FLYING` | 52 | 近磨+禁飞 | "差一步成行，对了你好像飞不了？真巧。" |
+| `BLOCK+DECISIVE_STRIKE` | 38 | 封锁+决战 | "挡住了。现在轮到我了。" |
+| `HUB_CONTROL+DECISIVE_STRIKE` | 29 | 路宽+致命 | "进可攻退可守，这一击你躲不掉。" |
+| `RISKY+DECISIVE_STRIKE` | 21 | 冒险+致命 | "你有反击？我知道。但这步棋你拦不住。" |
+| `NEAR_MILL+RISKY` | 18 | 近磨+冒险 | "你的磨坊我看在眼里，但这条线我先走完。" |
 
 #### 特殊
 
@@ -90,41 +90,41 @@ Narrator 采用"词库-匹配-修饰"三层流水线：
 
 | 标签 | 含义 | 示例台词 |
 |------|------|---------|
-| `MILL` | 形成磨坊 | "磨坊转动，你的棋子消逝。" |
-| `CAPTURE` | 吃子 | "少一子，多一分绝望。" |
-| `SQUEEZE` | 挤压空间 | "收紧绞索，你无处可逃。" |
+| `MILL` | 形成磨坊 | （已合并到 MILL+CAPTURE 组合） |
+| `CAPTURE` | 吃子 | （已合并到 MILL+CAPTURE 组合） |
+| `SQUEEZE` | 挤压空间（≤2 步可走） | "巨大的包围圈，正在收缩。" |
 | `BLOCK` | 封锁 | "想在这里成行？太天真了。" |
-| `DECISIVE_STRIKE` | 致命一击 | "精准。致命。不给你任何机会。" |
-| `NEAR_MILL` | 差一步成行 | "差一子成行，你拦得住吗？" |
-| `ANTI_FLYING` | 限制飞行 | "禁飞区已划定，你只能老老实实走路。" |
-| `HUB_CONTROL` | 占据枢纽 | "枢纽在手，天下我有。" |
-| `LAYOUT` | 布局阶段 | "布局阶段，每一步都是伏笔。" |
-| `SUPPRESSION` | 压制 | "收网开始了。" |
-| `RISKY` | 冒险走法 | "赌一把？" |
+| `DECISIVE_STRIKE` | 绝境决战 | "没有退路了，那就拼到底。" |
+| `NEAR_MILL` | 差一步成行 | "这步棋平平无奇？你自己品。" |
+| `ANTI_FLYING` | 限制飞行 | "放心吧，我不会轻易放你飞的。" |
+| `HUB_CONTROL` | 路宽（≥2 空邻居） | "多一条路，多一分活路。" |
+| `LAYOUT` | 布局阶段 | "先占个坑，后面再说。" |
+| `SUPPRESSION` | 压制 | （已清空，影响力不足） |
+| `RISKY` | 冒险走法 | "你的磨坊我看见了，但我的棋更大。" |
 
 ### 3.3 模式模板 (MODE_TEMPLATES)
 
 最终兜底，按策略模式提供通用台词：
 
-| 模式 | 风格 | 示例台词 |
-|------|------|---------|
-| `EXPANSION` | 深沉、布局感 | "你只看到了眼前的棋子，而我看到了整张网。" |
-| `SUPPRESSION` | 窒息、压迫感 | "困兽之斗。你每走一步，都是在自寻死路。" |
-| `DECISIVE` | 冷酷、终结感 | "游戏结束了。从现在开始，只有收割。" |
+| 模式 | 触发条件 | 风格 | 示例台词 |
+|------|---------|------|---------|
+| `EXPANSION` | 默认模式 | 随意闲聊 | "来吧，继续。" / "棋盘还大着呢，随便走。" |
+| `SUPPRESSION` | MOVING 阶段 + 机动性差 > 4 | 凡尔赛式炫耀 | "我都选择困难症了，你是正困难选择中吧。" |
+| `DECISIVE` | forceDiff < -1 / 对手接近飞行 / 飞行阶段 | 绝境求生、各种挣扎 | "我觉得我还能救一救。" / "大不了从头再来。你赶紧的，料理后事我们重开。" |
 
 ## 4. 情绪系统
 
 ### 4.1 情绪判断
 
-根据 `forceDiff`（兵力差 = 己方棋子数 − 对手棋子数）映射到 5 种情绪：
+根据 minimax 综合评估分（`bestMove.score`）映射到 5 种情绪。评分基于 24 局实战数据校准：
 
-| 兵力差 | 情绪 | 风格 |
-|--------|------|------|
-| ≥ 3 | `arrogant`（傲慢） | 前缀"呵，"/ 后缀"不过如此。" |
-| 1 ~ 2 | `confident`（自信） | 前缀"" / 后缀"继续。" |
-| 0 | `neutral`（中性） | 无修饰 |
-| -1 ~ -2 | `cautious`（谨慎） | 前缀"这一步..." / 后缀"我们走着瞧。" |
-| ≤ -3 | `desperate`（绝望） | 前缀"不可能..." / 后缀"绝地反击。" |
+| 评分范围 | 情绪 | 占比 | 风格 |
+|---------|------|------|------|
+| ≥ 500 | `arrogant`（傲慢） | ~15% | 嘲笑、质疑实力 |
+| 100 ~ 499 | `confident`（压不住笑） | ~30% | 假装淡定、憋笑 |
+| -99 ~ 99 | `neutral`（中性） | ~28% | 无修饰 |
+| -399 ~ -100 | `cautious`（嘴硬） | ~19% | 不承认劣势、挑衅 |
+| < -400 | `desperate`（搞笑求饶） | ~6% | 卖惨、自嘲 |
 
 ### 4.2 修饰叠加
 
@@ -136,7 +136,10 @@ Narrator 采用"词库-匹配-修饰"三层流水线：
 
 - prefix 和 suffix 从各自数组中随机选取
 - `neutral` 的 prefix/suffix 均为空字符串，不改变台词原貌
-- `arrogant` 和 `desperate` 的修饰最强烈，中性情绪最克制
+- `arrogant`：嘲笑质疑（"哈哈，" / "这就是你的全部实力吗？"）
+- `confident`：压不住笑（"咳，" / "别弃垒。"）
+- `cautious`：嘴硬不认输（"嗯？" / "你当我会怕？"）
+- `desperate`：搞笑求饶（"啊这……" / "救救我。"）
 
 ## 5. 匹配算法
 
@@ -197,10 +200,10 @@ function hasCombo(tags, comboKey) {
 - 策略模式（EXPANSION / SUPPRESSION / DECISIVE）
 - 兵力差（正=优势，负=劣势）
 - 机动性差值
-- 情绪基调（由 forceDiff 自动推导）
+- 情绪基调（由 minimax 评分自动推导）
 
 走法信息：
-- 描述、标签、风险等级
+- 描述、标签
 
 生成要求：
 1. 20 字以内
@@ -253,24 +256,24 @@ function hasCombo(tags, comboKey) {
 ```javascript
 Narrator.getLine(report, bestMove, mode, isOnline)
 // 统一入口。isOnline=false 返回字符串，isOnline=true 返回 Prompt 对象
+// 情绪由 bestMove.score 驱动
 
-Narrator.getOfflineLine(bestMove, mode, forceDiff)
-// 离线台词生成
+Narrator.getOfflineLine(bestMove, mode, score)
+// 离线台词生成（score 为 minimax 评估分）
 
 Narrator.createPrompt(report, bestMove, mode)
 // 在线 Prompt 生成
 
-Narrator.getEmotion(forceDiff)
-// 兵力差 → 情绪字符串
+Narrator.getEmotion(score)
+// minimax 评分 → 情绪字符串
 ```
 
 ### 8.1 bestMove 结构
 
 ```javascript
 {
-    score: 150,           // 走法评分
-    tags: ['NEAR_MILL', 'DECISIVE_STRIKE'],  // 语义标签
-    risk: 'high',         // 风险等级
+    score: 150,           // minimax 评估分（驱动情绪）
+    tags: ['NEAR_MILL', 'DECISIVE_STRIKE'],  // 语义标签（驱动台词）
     description: '...'    // 走法描述
 }
 ```
@@ -308,14 +311,14 @@ Narrator.getEmotion(forceDiff)
 
 ### 9.3 调整情绪阈值
 
-修改 `getEmotion(forceDiff)` 中的数值即可。当前阈值：
+修改 `getEmotion(score)` 中的数值即可。基于 24 局实战评分分布（1471 手样本）校准：
 
 ```
-arrogant:  forceDiff ≥ 3
-confident: forceDiff ≥ 1
-neutral:   forceDiff === 0
-cautious:  forceDiff ≥ -2
-desperate: forceDiff < -2
+arrogant:  score >= 500     (p90+，约 15%)
+confident: score >= 100     (p50~p90，约 30%)
+neutral:   score >= -100    (p25~p50，约 28%)
+cautious:  score >= -400    (p10~p25，约 19%)
+desperate: score < -400     (p10-，约 6%)
 ```
 
 ### 9.4 调试与测试

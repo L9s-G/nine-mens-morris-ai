@@ -28,29 +28,29 @@ function assert(condition, msg) {
     else { failed++; console.log(`[FAIL] ${msg}`); }
 }
 
-// --- Test 1: 情绪判断 ---
-assert(Narrator.getEmotion(3) === 'arrogant', 'forceDiff >= 3 应为 arrogant');
-assert(Narrator.getEmotion(1) === 'confident', 'forceDiff = 1 应为 confident');
-assert(Narrator.getEmotion(0) === 'neutral', 'forceDiff = 0 应为 neutral');
-assert(Narrator.getEmotion(-1) === 'cautious', 'forceDiff = -1 应为 cautious');
-assert(Narrator.getEmotion(-3) === 'desperate', 'forceDiff <= -2 应为 desperate');
+// --- Test 1: 情绪判断（基于 minimax 评分）---
+assert(Narrator.getEmotion(500) === 'arrogant', 'score >= 500 应为 arrogant');
+assert(Narrator.getEmotion(200) === 'confident', 'score = 200 应为 confident');
+assert(Narrator.getEmotion(0) === 'neutral', 'score = 0 应为 neutral');
+assert(Narrator.getEmotion(-200) === 'cautious', 'score = -200 应为 cautious');
+assert(Narrator.getEmotion(-500) === 'desperate', 'score = -500 应为 desperate');
 
 // --- Test 2: 离线台词生成 ---
-const mockMove = { score: 50, tags: ['MILL'], risk: 'low', description: '形成磨坊' };
-const line = Narrator.getOfflineLine(mockMove, 'EXPANSION', 0);
+const mockMove = { score: 50, tags: ['MILL'], description: '形成磨坊' };
+const line = Narrator.getOfflineLine(mockMove, 'EXPANSION', 50);
 assert(typeof line === 'string', '离线台词应为字符串');
 assert(line.length > 0, '离线台词不应为空');
 
 // --- Test 3: HIDDEN_TRAP 话术 ---
-const trapMove = { score: 80, tags: ['HIDDEN_TRAP'], risk: 'high', description: '陷阱走法' };
-const trapLine = Narrator.getOfflineLine(trapMove, 'DECISIVE', 0);
+const trapMove = { score: 80, tags: ['HIDDEN_TRAP'], description: '陷阱走法' };
+const trapLine = Narrator.getOfflineLine(trapMove, 'DECISIVE', 80);
 const trapKeywords = ['敢', '失误', '破绽', '送', '走错', '大意', '坟墓'];
 const hasTrapKeyword = trapKeywords.some(kw => trapLine.includes(kw));
 assert(hasTrapKeyword, `HIDDEN_TRAP 话术应包含诱导性词汇，实际: "${trapLine}"`);
 
 // --- Test 4: 情绪修饰 ---
-const arrogantLine = Narrator.getOfflineLine(mockMove, 'EXPANSION', 3);
-const desperateLine = Narrator.getOfflineLine(mockMove, 'EXPANSION', -3);
+const arrogantLine = Narrator.getOfflineLine(mockMove, 'EXPANSION', 600);
+const desperateLine = Narrator.getOfflineLine(mockMove, 'EXPANSION', -500);
 assert(typeof arrogantLine === 'string', '优势情绪台词应为字符串');
 assert(typeof desperateLine === 'string', '劣势情绪台词应为字符串');
 

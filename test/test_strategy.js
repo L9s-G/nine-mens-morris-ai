@@ -44,7 +44,6 @@ const firstMove = report.suggestedMoves[0];
 assert(firstMove.move !== undefined, "建议走法应包含 move");
 assert(typeof firstMove.score === 'number', "score 应为数字");
 assert(Array.isArray(firstMove.tags), "tags 应为数组");
-assert(typeof firstMove.risk === 'string', "risk 应为字符串");
 assert(typeof firstMove.description === 'string', "description 应为字符串");
 
 // --- Test 3: 走法评分应降序 ---

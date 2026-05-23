@@ -247,7 +247,7 @@ const AI = (() => {
         if (forceDiff < -1 || isOpponentNearFlying || phase === 'FLYING') {
             return MODE_DECISIVE;
         }
-        if (phase === 'MOVING' && mobilityGap > 2) {
+        if (phase === 'MOVING' && mobilityGap > 4) {
             return MODE_SUPPRESSION;
         }
         return MODE_EXPANSION;
@@ -433,10 +433,9 @@ const AI = (() => {
                     r => r.move.from === move.from && r.move.to === move.to && r.move.remove === move.remove
                 );
                 const tags = reportEntry ? reportEntry.tags : [];
-                const risk = reportEntry ? reportEntry.risk : 'low';
                 const finalScore = applyModeBonus(rawScore, tags, mode);
 
-                iterScores.push({ move, score: finalScore, rawScore, tags, risk });
+                iterScores.push({ move, score: finalScore, rawScore, tags });
             }
 
             // 本层完整评估了所有走法 → 保存结果，继续下一层
