@@ -37,17 +37,119 @@ const Narrator = (() => {
         ]
     };
 
-    // 按标签分类的台词
+    // 按标签组合分类的台词（同级内按实战频率排序）
+    const COMBO_TEMPLATES = {
+        // ========== 4标签组合（最精确，优先匹配） ==========
+        // HUB_CONTROL + NEAR_MILL + ANTI_FLYING + DECISIVE_STRIKE（74次）：全面压制
+        'HUB_CONTROL+NEAR_MILL+ANTI_FLYING+DECISIVE_STRIKE': [
+            "枢纽、磨坊、禁飞——你已经是个死人了。",
+            "全面封锁，致命一击。",
+            "这一手，结束一切。"
+        ],
+        // HUB_CONTROL + ANTI_FLYING + BLOCK + DECISIVE_STRIKE（42次）：枢纽+禁飞+封锁+致命
+        'HUB_CONTROL+ANTI_FLYING+BLOCK+DECISIVE_STRIKE': [
+            "心脏归我，翅膀折断，此路不通。",
+            "你已经无路可走了。",
+            "四重封锁，认输吧。"
+        ],
+
+        // ========== 3标签组合 ==========
+        // HUB_CONTROL + NEAR_MILL + LAYOUT（112次）：开局抢占枢纽，布局成行
+        'HUB_CONTROL+NEAR_MILL+LAYOUT': [
+            "枢纽归我，磨坊已在路上。",
+            "这一步布局，三手之后你就懂了。",
+            "先取心脏，再收性命。"
+        ],
+        // HUB_CONTROL + NEAR_MILL + ANTI_FLYING（79次）：枢纽+近磨+禁飞
+        'HUB_CONTROL+NEAR_MILL+ANTI_FLYING': [
+            "枢纽归我，磨坊在路上，你的翅膀也被折断了。",
+            "三重绞杀，无处可逃。",
+            "心脏在我手里，你的棋子只能等死。"
+        ],
+        // ANTI_FLYING + BLOCK + DECISIVE_STRIKE（60次）：禁飞+封锁+致命
+        'ANTI_FLYING+BLOCK+DECISIVE_STRIKE': [
+            "飞不起来，走不动路，这就是绝境。",
+            "你的棋子已经被判了死刑。",
+            "翅膀折了，路也断了。"
+        ],
+        // HUB_CONTROL + BLOCK + LAYOUT（43次）：枢纽+封锁+布局
+        'HUB_CONTROL+BLOCK+LAYOUT': [
+            "枢纽在手，你的如意算盘落空了。",
+            "布局中，顺便断你一条路。",
+            "这个位置，攻守兼备。"
+        ],
+        // NEAR_MILL + RISKY + DECISIVE_STRIKE（34次）：近磨+冒险+致命
+        'NEAR_MILL+RISKY+DECISIVE_STRIKE': [
+            "赌你不敢拦这一步。",
+            "高风险？不，这是必杀。",
+            "这一手看似冒险，实则致命。"
+        ],
+        // CAPTURE + ANTI_FLYING + BLOCK（34次）：吃子+禁飞+封锁
+        'CAPTURE+ANTI_FLYING+BLOCK': [
+            "吃你的子，折你的翅，断你的路。",
+            "三重打击，你还在挣扎什么？",
+            "棋子少了，翅膀折了，路也堵了。"
+        ],
+
+        // ========== 2标签组合（子集匹配，精确组合未命中时回退） ==========
+        // NEAR_MILL + DECISIVE_STRIKE（84次）：即将成行+致命一击
+        'NEAR_MILL+DECISIVE_STRIKE': [
+            "差一子成行，而这一步，就是那最后一子。",
+            "磨坊已就绪，收割开始。",
+            "看到这条线了吗？你拦不住。"
+        ],
+        // CAPTURE + BLOCK（63次）：吃子+封锁
+        'CAPTURE+BLOCK': [
+            "吃子是假，封路是真。",
+            "你的棋子我收下，你的路线也到此为止。",
+            "一子落，两处绝。"
+        ],
+        // NEAR_MILL + ANTI_FLYING（52次）：近磨+禁飞
+        'NEAR_MILL+ANTI_FLYING': [
+            "磨坊将成，你的棋子连飞都飞不了。",
+            "成行在即，你只能眼睁睁看着。",
+            "近在咫尺，远在天涯——对你来说。"
+        ],
+        // BLOCK + DECISIVE_STRIKE（38次）：封锁+致命一击
+        'BLOCK+DECISIVE_STRIKE': [
+            "此路不通，而这就是你的末路。",
+            "封锁只是序曲，致命一击才是正文。",
+            "断你退路，取你性命。"
+        ],
+        // HUB_CONTROL + DECISIVE_STRIKE（29次）：枢纽+致命
+        'HUB_CONTROL+DECISIVE_STRIKE': [
+            "占据心脏，一击致命。",
+            "枢纽在手，胜负已分。",
+            "这个位置，就是你的坟墓。"
+        ],
+        // RISKY + DECISIVE_STRIKE（21次）：冒险+致命
+        'RISKY+DECISIVE_STRIKE': [
+            "高风险，高回报——这一手赌的是你的命。",
+            "看似冒险，实则必杀。",
+            "你敢跟吗？不敢就输了。"
+        ],
+        // NEAR_MILL + RISKY（18次）：近磨+冒险
+        'NEAR_MILL+RISKY': [
+            "赌一把？赌你拦不住我成行。",
+            "这一步有风险，但磨坊的诱惑更大。",
+            "冒险？不，这是精准计算。"
+        ],
+
+        // ========== 特殊：HIDDEN_TRAP ==========
+        'HIDDEN_TRAP': [
+            "这步棋我大意了，你敢吃吗？",
+            "看来我也有计算失误的时候，这一子算我送你的。",
+            "哎呀，走错了。你不会放过这个机会吧？",
+            "这一步...是我的破绽？还是你的坟墓？"
+        ]
+    };
+
+    // 按单标签分类的台词（组合未命中时的回退）
     const TAG_TEMPLATES = {
         MILL: [
             "磨坊转动，你的棋子消逝。",
             "成行。收割。",
             "三子连线，天经地义。"
-        ],
-        BLOCK: [
-            "想在这里成行？太天真了。",
-            "你的如意算盘，我早已看穿。",
-            "此路不通。"
         ],
         CAPTURE: [
             "这颗棋子，我收下了。",
@@ -59,16 +161,40 @@ const Narrator = (() => {
             "你的活动空间正在蒸发。",
             "窒息的感觉如何？"
         ],
+        BLOCK: [
+            "想在这里成行？太天真了。",
+            "你的如意算盘，我早已看穿。",
+            "此路不通。"
+        ],
+        DECISIVE_STRIKE: [
+            "致命一击，胜负已分。",
+            "这一手，决定了整盘棋的走向。",
+            "精准。致命。不给你任何机会。"
+        ],
+        NEAR_MILL: [
+            "差一子成行，你拦得住吗？",
+            "磨坊将至，你感受到了吗？",
+            "这条线，已经无法阻止了。"
+        ],
+        ANTI_FLYING: [
+            "翅膀被折断了，飞不起来了吧？",
+            "你的棋子已经失去了飞行的自由。",
+            "禁飞区已划定，你只能老老实实走路。"
+        ],
         HUB_CONTROL: [
             "枢纽在手，天下我有。",
             "这个位置，是棋盘的心脏。",
             "占据中心，掌控全局。"
         ],
-        HIDDEN_TRAP: [
-            "这步棋我大意了，你敢吃吗？",
-            "看来我也有计算失误的时候，这一子算我送你的。",
-            "哎呀，走错了。你不会放过这个机会吧？",
-            "这一步...是我的破绽？还是你的坟墓？"
+        LAYOUT: [
+            "布局阶段，每一步都是伏笔。",
+            "看似平淡，实则暗藏杀机。",
+            "布局未完，你已经急了？"
+        ],
+        SUPPRESSION: [
+            "感觉到呼吸困难了吗？",
+            "你的活动空间正在消失。",
+            "收网开始了。"
         ],
         RISKY: [
             "赌一把？",
@@ -126,27 +252,72 @@ const Narrator = (() => {
     /**
      * 离线模式：基于标签、模式、情绪生成台词
      */
+    // 组合匹配优先级（特异性优先：4标签 > 3标签 > 2标签，同级内按频率排序）
+    const COMBO_PRIORITY = [
+        // 4标签
+        'HUB_CONTROL+NEAR_MILL+ANTI_FLYING+DECISIVE_STRIKE',
+        'HUB_CONTROL+ANTI_FLYING+BLOCK+DECISIVE_STRIKE',
+        // 3标签
+        'HUB_CONTROL+NEAR_MILL+LAYOUT',
+        'HUB_CONTROL+NEAR_MILL+ANTI_FLYING',
+        'ANTI_FLYING+BLOCK+DECISIVE_STRIKE',
+        'HUB_CONTROL+BLOCK+LAYOUT',
+        'NEAR_MILL+RISKY+DECISIVE_STRIKE',
+        'CAPTURE+ANTI_FLYING+BLOCK',
+        // 2标签
+        'NEAR_MILL+DECISIVE_STRIKE',
+        'CAPTURE+BLOCK',
+        'NEAR_MILL+ANTI_FLYING',
+        'BLOCK+DECISIVE_STRIKE',
+        'HUB_CONTROL+DECISIVE_STRIKE',
+        'RISKY+DECISIVE_STRIKE',
+        'NEAR_MILL+RISKY',
+        // 特殊
+        'HIDDEN_TRAP'
+    ];
+
+    // 单标签回退优先级
+    const TAG_PRIORITY = [
+        'MILL', 'CAPTURE', 'SQUEEZE', 'BLOCK',
+        'DECISIVE_STRIKE', 'NEAR_MILL', 'ANTI_FLYING',
+        'HUB_CONTROL', 'LAYOUT', 'SUPPRESSION', 'RISKY'
+    ];
+
+    /**
+     * 检查 tags 是否包含指定组合的所有标签
+     */
+    function hasCombo(tags, comboKey) {
+        const required = comboKey.split('+');
+        return required.every(tag => tags.includes(tag));
+    }
+
     function getOfflineLine(bestMove, mode, materialDiff) {
         const emotion = getEmotion(materialDiff);
         const modifier = EMOTION_MODIFIERS[emotion];
+        const tags = bestMove.tags || [];
 
-        // 优先级：HIDDEN_TRAP > 特定标签 > 模式台词
         let line = '';
 
-        if (bestMove.tags.includes('HIDDEN_TRAP')) {
-            line = randomPick(TAG_TEMPLATES.HIDDEN_TRAP);
-        } else if (bestMove.tags.includes('MILL')) {
-            line = randomPick(TAG_TEMPLATES.MILL);
-        } else if (bestMove.tags.includes('BLOCK')) {
-            line = randomPick(TAG_TEMPLATES.BLOCK);
-        } else if (bestMove.tags.includes('CAPTURE')) {
-            line = randomPick(TAG_TEMPLATES.CAPTURE);
-        } else if (bestMove.tags.includes('SQUEEZE')) {
-            line = randomPick(TAG_TEMPLATES.SQUEEZE);
-        } else if (bestMove.tags.includes('HUB_CONTROL')) {
-            line = randomPick(TAG_TEMPLATES.HUB_CONTROL);
-        } else {
-            // 没有特定标签，使用模式台词
+        // 1. 优先匹配组合标签
+        for (const comboKey of COMBO_PRIORITY) {
+            if (hasCombo(tags, comboKey)) {
+                line = randomPick(COMBO_TEMPLATES[comboKey]);
+                break;
+            }
+        }
+
+        // 2. 回退到单标签
+        if (!line) {
+            for (const tag of TAG_PRIORITY) {
+                if (tags.includes(tag) && TAG_TEMPLATES[tag]) {
+                    line = randomPick(TAG_TEMPLATES[tag]);
+                    break;
+                }
+            }
+        }
+
+        // 3. 最终回退到模式台词
+        if (!line) {
             const modeLines = MODE_TEMPLATES[mode] || MODE_TEMPLATES.EXPANSION;
             line = randomPick(modeLines);
         }
@@ -215,6 +386,9 @@ const Narrator = (() => {
 
         // 暴露词库供测试或扩展
         _MODE_TEMPLATES: MODE_TEMPLATES,
-        _TAG_TEMPLATES: TAG_TEMPLATES
+        _TAG_TEMPLATES: TAG_TEMPLATES,
+        _COMBO_TEMPLATES: COMBO_TEMPLATES,
+        _COMBO_PRIORITY: COMBO_PRIORITY,
+        _TAG_PRIORITY: TAG_PRIORITY
     };
 })();
