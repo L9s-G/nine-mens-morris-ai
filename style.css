@@ -114,6 +114,89 @@
     --radius: 12px;
 }
 
+/* ==================== Variables (Cyber-Macaron) ==================== */
+
+[data-theme="cyber"] {
+    /* 基础背景与面板：深邃暗夜 */
+    --color-bg: #0b0c10;
+    --color-surface: #1f2833;
+    --color-text: #c5a3ff;
+    --color-text-dim: #66fcf1;
+    --color-accent: #ff4081;
+    --color-border: #3a4f5c;
+    --color-border-dark: #2a3a44;
+    --color-hover: rgba(102, 252, 241, 0.1);
+    --color-active: rgba(102, 252, 241, 0.2);
+    --color-overlay: rgba(11, 12, 16, 0.85);
+
+    /* 棋盘色：极光霓虹线 */
+    --color-board-face: #121c24;
+    --color-board-stroke: #1f2833;
+    --color-board-line: #00ffcc;
+    --color-board-hover: #424b55;
+    --color-board-highlight: #424b55;
+
+    /* 棋子色：量子奶白 vs 霓虹电蓝 */
+    --color-white: #ffffff;
+    --color-white-stroke: #00ffcc;
+    --color-black: #00e5ff;
+    --color-black-stroke: #0086b3;
+    --color-capture: #ff0055;
+    --color-capture-glow: #ff0055;
+    --color-thinking: #66fcf1;
+
+    /* 圆点色 */
+    --color-dot-white-hand: #ffffff;
+    --color-dot-black: #00e5ff;
+    --color-dot-black-board: #0086b3;
+    --color-dot-lost: #414a4c;
+
+    /* 气泡 / 弹幕色 */
+    --color-bubble: #1a1528;
+    --color-danmaku: #ffff00;
+
+    /* 霓虹发光核心 */
+    --shadow-warm: rgba(255, 255, 255, 0.4);
+    --shadow-black: rgba(0, 229, 255, 0.5);
+    --highlight-white: rgba(255, 255, 255, 0.8);
+    --highlight-soft: rgba(0, 255, 204, 0.4);
+    --shadow-ambient: rgba(0, 0, 0, 0.5);
+    --shadow-board: rgba(0, 255, 204, 0.15);
+    --shadow-danmaku: rgba(0, 0, 0, 0.9);
+    --shadow-modal: rgba(0, 0, 0, 0.8);
+
+    --radius: 12px;
+}
+
+/* 赛博主题专属发光效果 */
+[data-theme="cyber"] #board-lines {
+    filter: drop-shadow(0 0 4px rgba(0, 255, 204, 0.6));
+}
+
+[data-theme="cyber"] .board-dot {
+    filter: drop-shadow(0 0 6px var(--color-board-line));
+}
+
+[data-theme="cyber"] .piece-white {
+    filter:
+        drop-shadow(0 0 8px rgba(0, 255, 204, 0.5))
+        drop-shadow(2px 3px 4px rgba(0,0,0,0.7));
+}
+
+[data-theme="cyber"] .piece-black {
+    filter:
+        drop-shadow(0 0 10px rgba(0, 229, 255, 0.6))
+        drop-shadow(2px 3px 4px rgba(0,0,0,0.7));
+}
+
+[data-theme="cyber"] .dot-white.hand {
+    box-shadow: 0 0 8px rgba(255,255,255,0.6);
+}
+
+[data-theme="cyber"] .dot-black.hand {
+    box-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
+}
+
 /* ==================== Reset ==================== */
 
 * {
@@ -199,7 +282,7 @@ html, body {
     filter: url(#inset-shadow);
 }
 
-/* ==================== Pieces (Premium Macaron) ==================== */
+/* ==================== Pieces ==================== */
 
 .piece {
     r: 22;
@@ -306,7 +389,7 @@ html, body {
 .dot.lost  { background: transparent !important; border: 2px dashed var(--color-dot-lost); }
 
 .dot-white.hand  {
-    background: #ffffff;
+    background: var(--color-dot-white-hand);
     border: 2px solid var(--color-white-stroke);
 }
 .dot-white.board { border: 2px solid var(--color-white-stroke); }

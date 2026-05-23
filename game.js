@@ -611,7 +611,8 @@ const Game = (() => {
 
     const THEMES = [
         { key: 'default',  label: '暗夜' },
-        { key: 'macaron',  label: '马卡龙' }
+        { key: 'macaron',  label: '马卡龙' },
+        { key: 'cyber',    label: '赛博' }
     ];
 
     const DEFAULT_SETTINGS = { difficulty: 'Normal', firstPlayer: 'opponent', theme: 'default' };
