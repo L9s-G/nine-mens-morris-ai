@@ -46,7 +46,7 @@ const AI = (() => {
      */
     function resolveTemperature(tempConfig, phase) {
         if (typeof tempConfig === 'number') return tempConfig;
-        return tempConfig[phase] ?? 0.05;
+        return tempConfig[phase] ?? PerformanceConfig.Normal.temperature;
     }
 
     // 当前配置（默认平衡模式）
@@ -320,7 +320,7 @@ const AI = (() => {
      * @param {number} temperature - 温度参数，控制指数衰减速度
      * @param {number} topK - 参与随机的最大候选数（默认 3）
      */
-    function pickWithWeightedRandom(sorted, temperature = 1.0, topK = 3) {
+    function pickWithWeightedRandom(sorted, temperature = PerformanceConfig.Normal.temperature, topK = PerformanceConfig.Normal.topK) {
         if (sorted.length === 0) return null;
         if (sorted.length === 1 || temperature === 0) return sorted[0];
 
