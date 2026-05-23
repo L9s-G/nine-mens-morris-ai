@@ -22,7 +22,7 @@ const AI = (() => {
 
     // 评估权重
     const WEIGHTS = {
-        material:  150,  // 每多一子的分值
+        force:     150,  // 每多一子的分值
         mobility:   2,   // 每个安全移动的分值
         threat:    15,   // 每个潜在磨坊的分值
         fork:      30,   // 每个叉子的分值
@@ -93,11 +93,11 @@ const AI = (() => {
 
         // 平滑权重过渡：放置末期逐渐增加机动性权重
         const phaseFactor = 1 - (Math.max(ai.piecesOnHand, opponent.piecesOnHand) / 9);
-        const materialW = WEIGHTS.material * (1 - phaseFactor * 0.3);  // 放置末期材料权重降低 30%
+        const forceW = WEIGHTS.force * (1 - phaseFactor * 0.3);  // 放置末期兵力权重降低 30%
         const mobilityW = WEIGHTS.mobility * (1 + phaseFactor * 2);     // 放置末期机动性权重提升 3 倍
 
-        // 材料差
-        const materialDiff = (ai.piecesOnBoard + ai.piecesOnHand) - (opponent.piecesOnBoard + opponent.piecesOnHand);
+        // 兵力差
+        const forceDiff = (ai.piecesOnBoard + ai.piecesOnHand) - (opponent.piecesOnBoard + opponent.piecesOnHand);
 
         // 机动性差（仅计算可移动到的空位数，不吃子展开）
         const mobilityDiff = E.countMobility(E.TYPE_AI) - E.countMobility(E.TYPE_OPPONENT);
@@ -138,12 +138,12 @@ const AI = (() => {
 
         // 绝望修正：大幅落后时寻找陷阱机会
         let desperationBonus = 0;
-        if (materialDiff <= -3) {
+        if (forceDiff <= -3) {
             desperationBonus += 20; // 鼓励冒险
         }
 
         return (
-            materialW * materialDiff +
+            forceW * forceDiff +
             mobilityW * mobilityDiff +
             WEIGHTS.threat * threatDiff +
             aiForkW * aiTension.playerForks - oppForkW * opponentTension.playerForks +
@@ -241,10 +241,10 @@ const AI = (() => {
 
     function determineMode(report) {
         const { context, metrics } = report;
-        const { phase, materialDiff, isOpponentNearFlying } = context;
+        const { phase, forceDiff, isOpponentNearFlying } = context;
         const { mobilityGap } = metrics;
 
-        if (materialDiff < -1 || isOpponentNearFlying || phase === 'FLYING') {
+        if (forceDiff < -1 || isOpponentNearFlying || phase === 'FLYING') {
             return MODE_DECISIVE;
         }
         if (phase === 'MOVING' && mobilityGap > 2) {

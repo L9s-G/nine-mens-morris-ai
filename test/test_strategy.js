@@ -32,7 +32,7 @@ assert(report.context !== undefined, "报告应包含 context");
 assert(report.metrics !== undefined, "报告应包含 metrics");
 assert(report.suggestedMoves !== undefined, "报告应包含 suggestedMoves");
 assert(report.context.phase === 'PLACEMENT', "初始阶段应为 PLACEMENT");
-assert(report.context.materialDiff === 0, "初始材料差应为 0");
+assert(report.context.forceDiff === 0, "初始兵力差应为 0");
 assert(report.context.isOpponentNearFlying === false, "初始对方不应接近飞行");
 assert(report.metrics.mobilityGap !== undefined, "应有 mobilityGap");
 assert(report.metrics.tensionScore !== undefined, "应有 tensionScore");

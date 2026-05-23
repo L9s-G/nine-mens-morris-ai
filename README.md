@@ -9,7 +9,7 @@ A pure JavaScript Nine Men's Morris (九子棋) AI engine featuring Minimax sear
   - **Eco** — Depth 1, high temperature (randomized), beginner-friendly
   - **Normal** — Depth 3, trap detection, balanced challenge
   - **Master** — Depth 4, trap detection, near-deterministic play
-- **Dynamic strategy state machine** — Switches between Expansion, Suppression, and Decisive Strike based on material count, mobility gap, and game phase
+- **Dynamic strategy state machine** — Switches between Expansion, Suppression, and Decisive Strike based on force count, mobility gap, and game phase
 - **Hidden trap detection** — Depth-gap evaluation identifies moves that look bad at shallow depth but are winning at deeper analysis
 - **Personality narrator** — Emotion-driven Chinese dialogue (arrogant / confident / neutral / cautious / desperate); supports offline word bank and optional LLM integration
 - **Tactical report system** — Structured JSON output with context, metrics, scored moves, and semantic tags
@@ -85,11 +85,11 @@ bash run_battles.sh
 |---------|-------------|
 | **Minimax + Alpha-Beta** | Adversarial search with move ordering for better pruning |
 | **Dynamic Depth** | Depth adjusts per strategy mode (+1 for Suppression, -1 for Flying) |
-| **Strategy State Machine** | Expansion / Suppression / Decisive, driven by material diff & mobility gap |
+| **Strategy State Machine** | Expansion / Suppression / Decisive, driven by force diff & mobility gap |
 | **Hidden Trap** | `TrapScore = Score(D_deep) - Score(D_shallow)` — finds deceptive winning moves |
 | **Softmax Temperature** | Controls move randomization: high for Eco, near-zero for Master |
 | **Effective Mobility** | Counts only moves that don't immediately lose a piece |
-| **Phase-Aware Weights** | Evaluation weights shift smoothly as pieces leave hand (material ↓, mobility ↑) |
+| **Phase-Aware Weights** | Evaluation weights shift smoothly as pieces leave hand (force ↓, mobility ↑) |
 
 ## License
 

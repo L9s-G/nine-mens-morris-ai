@@ -26,7 +26,7 @@ Transforms board coordinates into structured tactical data:
 
 - **Formation tension**: `analyzeFormationTension(player)` returns threat count, fork count, and other metrics
 - **Mobility**: `countMobility(player)` counts safe moves
-- **Tactical report**: `generateReport()` outputs standardized JSON with phase, material diff, mobility diff, suggested moves and tags
+- **Tactical report**: `generateReport()` outputs standardized JSON with phase, force diff, mobility diff, suggested moves and tags
 
 ### 2.3 AI Controller Layer (ai.js)
 
@@ -121,7 +121,7 @@ Measured performance: depth 4 typically 9-588ms, depth 5 mostly 63-513ms, occasi
 
 | Factor | Weight | Description |
 |--------|--------|-------------|
-| material | 150 | Per piece advantage |
+| force | 150 | Per piece advantage |
 | mobility | 2 | Safe move count |
 | threat | 15 | Potential mill (one step away) |
 | fork | 30 | Dual threat (base value, modified in flying phase) |
@@ -134,7 +134,7 @@ Measured performance: depth 4 typically 9-588ms, depth 5 mostly 63-513ms, occasi
 Weights transition smoothly across game phases to avoid evaluation discontinuities:
 
 - `phaseFactor = 1 − max(both hands) / 9` (0 = early placement, 1 = hands empty)
-- `materialW = 150 × (1 − phaseFactor × 0.3)` — material weight reduces 30% in late game
+- `forceW = 150 × (1 − phaseFactor × 0.3)` — force weight reduces 30% in late game
 - `mobilityW = 2 × (1 + phaseFactor × 2)` — mobility weight triples in late game
 
 ### 5.3 Asymmetric Flying Phase Fork Weighting
@@ -160,7 +160,7 @@ Weight matrix:
 ### 5.4 Other Factors
 
 - **Fly threat**: ±50 penalty when opponent/AI enters flying phase
-- **Desperation bonus**: +20 when material deficit ≥ 3 (encourages risk-taking)
+- **Desperation bonus**: +20 when force deficit ≥ 3 (encourages risk-taking)
 
 ## 6. Strategy State Machine
 
@@ -170,7 +170,7 @@ AI dynamically switches personality based on game context:
 |------|---------|----------|------|
 | **Expansion** | Default / placement | Occupy high-connectivity hubs, build mill networks | `HUB_CONTROL`, `LAYOUT` |
 | **Suppression** | Moving phase, mobility gap > 2 | Block opponent escape, prevent flying transition | `SQUEEZE`, `ANTI_FLYING` |
-| **Decisive** | Material deficit / opponent near flying / flying | Max depth, seek fastest kill via double mills | `ATTACK`, `DECISIVE_STRIKE` |
+| **Decisive** | Force deficit / opponent near flying / flying | Max depth, seek fastest kill via double mills | `ATTACK`, `DECISIVE_STRIKE` |
 
 Strategy mode affects two dimensions:
 1. **Depth**: Suppression +1, Decisive+Flying −1
@@ -305,7 +305,7 @@ This "iterative deepening + high-frequency synchronous probe" pattern is general
 
 **Problem**: When timeout truncates search to minimal depth, can the AI still spot immediate captures?
 
-**Fix**: The static evaluation assigns overwhelming weight to mills (+40) and material advantage (+150 per piece). Even at D=0 (pure static eval), the AI perceives the massive score differential of "form mill and capture." This "high-weight base noise" ensures the AI maintains basic capture instinct at any search depth, never missing obvious kill opportunities.
+**Fix**: The static evaluation assigns overwhelming weight to mills (+40) and force advantage (+150 per piece). Even at D=0 (pure static eval), the AI perceives the massive score differential of "form mill and capture." This "high-weight base noise" ensures the AI maintains basic capture instinct at any search depth, never missing obvious kill opportunities.
 
 ### 12.8 Dynamic Strategy State Machine
 

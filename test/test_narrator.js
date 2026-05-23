@@ -29,11 +29,11 @@ function assert(condition, msg) {
 }
 
 // --- Test 1: 情绪判断 ---
-assert(Narrator.getEmotion(3) === 'arrogant', 'materialDiff >= 3 应为 arrogant');
-assert(Narrator.getEmotion(1) === 'confident', 'materialDiff = 1 应为 confident');
-assert(Narrator.getEmotion(0) === 'neutral', 'materialDiff = 0 应为 neutral');
-assert(Narrator.getEmotion(-1) === 'cautious', 'materialDiff = -1 应为 cautious');
-assert(Narrator.getEmotion(-3) === 'desperate', 'materialDiff <= -2 应为 desperate');
+assert(Narrator.getEmotion(3) === 'arrogant', 'forceDiff >= 3 应为 arrogant');
+assert(Narrator.getEmotion(1) === 'confident', 'forceDiff = 1 应为 confident');
+assert(Narrator.getEmotion(0) === 'neutral', 'forceDiff = 0 应为 neutral');
+assert(Narrator.getEmotion(-1) === 'cautious', 'forceDiff = -1 应为 cautious');
+assert(Narrator.getEmotion(-3) === 'desperate', 'forceDiff <= -2 应为 desperate');
 
 // --- Test 2: 离线台词生成 ---
 const mockMove = { score: 50, tags: ['MILL'], risk: 'low', description: '形成磨坊' };

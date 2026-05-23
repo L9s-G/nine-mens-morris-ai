@@ -4,7 +4,7 @@
 // 特性：
 //   - 离线模式：基于 tags/模式/情绪从本地词库抽取对白
 //   - 在线模式：生成 LLM System Prompt
-//   - 情绪系统：根据 materialDiff 动态调整语气
+//   - 情绪系统：根据 forceDiff 动态调整语气
 //   - 陷阱话术：HiddenTrap 专属诱导性台词
 // ========================================================
 
@@ -203,7 +203,7 @@ const Narrator = (() => {
         ]
     };
 
-    // 情绪修饰符（根据 materialDiff 调整语气）
+    // 情绪修饰符（根据 forceDiff 调整语气）
     const EMOTION_MODIFIERS = {
         arrogant: {  // 大幅优势
             prefix: ["呵，", "哼，", ""],
@@ -232,11 +232,11 @@ const Narrator = (() => {
     /**
      * 根据材料差判断情绪
      */
-    function getEmotion(materialDiff) {
-        if (materialDiff >= 3) return 'arrogant';
-        if (materialDiff >= 1) return 'confident';
-        if (materialDiff === 0) return 'neutral';
-        if (materialDiff >= -2) return 'cautious';
+    function getEmotion(forceDiff) {
+        if (forceDiff >= 3) return 'arrogant';
+        if (forceDiff >= 1) return 'confident';
+        if (forceDiff === 0) return 'neutral';
+        if (forceDiff >= -2) return 'cautious';
         return 'desperate';
     }
 
@@ -291,8 +291,8 @@ const Narrator = (() => {
         return required.every(tag => tags.includes(tag));
     }
 
-    function getOfflineLine(bestMove, mode, materialDiff) {
-        const emotion = getEmotion(materialDiff);
+    function getOfflineLine(bestMove, mode, forceDiff) {
+        const emotion = getEmotion(forceDiff);
         const modifier = EMOTION_MODIFIERS[emotion];
         const tags = bestMove.tags || [];
 
@@ -335,7 +335,7 @@ const Narrator = (() => {
      * 在线模式：生成给 LLM 的 System Prompt
      */
     function createPrompt(report, bestMove, mode) {
-        const emotion = getEmotion(report.context.materialDiff);
+        const emotion = getEmotion(report.context.forceDiff);
 
         return {
             role: "system",
@@ -344,7 +344,7 @@ const Narrator = (() => {
 当前博弈状态：
 - 阶段：${report.context.phase}
 - 策略模式：${mode}
-- 材料差：${report.context.materialDiff}（正=你优势，负=对手优势）
+- 兵力差：${report.context.forceDiff}（正=你优势，负=对手优势）
 - 机动性差值：${report.metrics.mobilityGap}
 - 情绪基调：${emotion}
 
@@ -372,7 +372,7 @@ const Narrator = (() => {
      */
     function getLine(report, bestMove, mode, isOnline = false) {
         if (!isOnline) {
-            return getOfflineLine(bestMove, mode, report.context.materialDiff);
+            return getOfflineLine(bestMove, mode, report.context.forceDiff);
         }
         return createPrompt(report, bestMove, mode);
     }

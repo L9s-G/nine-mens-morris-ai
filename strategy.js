@@ -228,14 +228,14 @@ const Strategy = (() => {
         const oppData = player === E.TYPE_OPPONENT ? state.playerAI : state.playerOpponent;
 
         // --- Context ---
-        const materialDiff = playerData.piecesOnBoard - oppData.piecesOnBoard;
+        const forceDiff = playerData.piecesOnBoard - oppData.piecesOnBoard;
         const isOpponentNearFlying = oppData.piecesOnBoard === 3 && oppData.piecesOnHand === 0;
 
         // 绝望指数：0=正常, 1=劣势, 2=大劣势, 3=绝境
         let desperationLevel = 0;
-        if (materialDiff <= -2) desperationLevel = 1;
-        if (materialDiff <= -3) desperationLevel = 2;
-        if (materialDiff <= -4 || (playerData.piecesOnBoard === 3 && playerData.piecesOnHand === 0)) {
+        if (forceDiff <= -2) desperationLevel = 1;
+        if (forceDiff <= -3) desperationLevel = 2;
+        if (forceDiff <= -4 || (playerData.piecesOnBoard === 3 && playerData.piecesOnHand === 0)) {
             desperationLevel = 3;
         }
 
@@ -264,7 +264,7 @@ const Strategy = (() => {
             if (phase === 'MOVING' && mobilityGap > 2) {
                 ev.tags.push('SUPPRESSION');
             }
-            if (materialDiff < -1 || phase === 'FLYING') {
+            if (forceDiff < -1 || phase === 'FLYING') {
                 ev.tags.push('DECISIVE_STRIKE');
             }
 
@@ -284,7 +284,7 @@ const Strategy = (() => {
         evaluated.sort((a, b) => b.score - a.score);
 
         return {
-            context: { phase, materialDiff, isOpponentNearFlying, desperationLevel },
+            context: { phase, forceDiff, isOpponentNearFlying, desperationLevel },
             metrics: {
                 mobilityGap,
                 tensionScore: tension.tensionScore,
