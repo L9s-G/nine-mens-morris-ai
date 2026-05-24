@@ -75,8 +75,8 @@ if (!result || !result.allScores || result.allScores.length === 0) {
 }
 
 console.log('=== 所有走法评分 (前20) ===');
-console.log('排名 | 走法                  | 最终分 | 原始分 | 标签');
-console.log('-----|----------------------|--------|--------|----');
+console.log('排名 | 走法                  | 评分   | 标签');
+console.log('-----|----------------------|--------|------');
 
 const scores = result.allScores.slice(0, 20);
 for (let i = 0; i < scores.length; i++) {
@@ -88,7 +88,7 @@ for (let i = 0; i < scores.length; i++) {
     else moveStr = `move ${s.move.from}→${String(s.move.to).padStart(2)}`;
 
     const tags = (s.tags || []).join(',');
-    console.log(`  ${String(i + 1).padStart(2)} | ${moveStr.padEnd(20)} | ${String(s.score).padStart(6)} | ${String(s.rawScore || 'N/A').padStart(6)} | ${tags}`);
+    console.log(`  ${String(i + 1).padStart(2)} | ${moveStr.padEnd(20)} | ${String(s.score).padStart(6)} | ${tags}`);
 }
 
 console.log('');

@@ -49,6 +49,12 @@ const Engine = (() => {
         [0,9,21], [3,10,18], [6,11,15], [8,12,17], [5,13,20], [2,14,23], [1,4,7], [16,19,22]  // 竖线
     ];
 
+    // 每个位置所属的 Mill 索引
+    const POSITION_MILLS = Array.from({ length: 24 }, () => []);
+    for (let i = 0; i < MILLS.length; i++) {
+        for (let j = 0; j < 3; j++) POSITION_MILLS[MILLS[i][j]].push(i);
+    }
+
     // ==================== 内部状态 ====================
     let state = null;
 
@@ -90,12 +96,11 @@ const Engine = (() => {
     }
 
     function isInMill(board, pos, player) {
-        for (let i = 0; i < MILLS.length; i++) {
-            const mill = MILLS[i];
-            if (mill[0] === pos || mill[1] === pos || mill[2] === pos) {
-                if (board[mill[0]] === player && board[mill[1]] === player && board[mill[2]] === player) {
-                    return true;
-                }
+        const posMills = POSITION_MILLS[pos];
+        for (let i = 0; i < posMills.length; i++) {
+            const mill = MILLS[posMills[i]];
+            if (board[mill[0]] === player && board[mill[1]] === player && board[mill[2]] === player) {
+                return true;
             }
         }
         return false;
@@ -529,6 +534,7 @@ const Engine = (() => {
         BOARD_SIZE,
         NEIGHBORS,
         MILLS,
+        POSITION_MILLS,
 
         init,
         reset,

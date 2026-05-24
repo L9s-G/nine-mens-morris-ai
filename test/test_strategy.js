@@ -24,17 +24,31 @@ function assert(condition, msg) {
     else { failed++; console.log(`[FAIL] ${msg}`); }
 }
 
+function getBonus(move, player) {
+    const opp = player === Engine.TYPE_OPPONENT ? Engine.TYPE_AI : Engine.TYPE_OPPONENT;
+    const oppMoves = Engine.generateLegalMoves(opp);
+    let oppCapturesBefore = 0;
+    for (let i = 0; i < oppMoves.length; i++) {
+        if (oppMoves[i].remove !== null) oppCapturesBefore++;
+    }
+    return Strategy.computeBonus(move, player, oppCapturesBefore);
+}
+
 // --- Test 1: evaluateMove 返回结构 ---
 Engine.init();
 const moves = Engine.generateLegalMoves(Engine.TYPE_OPPONENT);
 assert(moves.length > 0, "初始应有合法走法");
 
-const ev = Strategy.evaluateMove(moves[0], Engine.TYPE_OPPONENT);
+const bonus0 = getBonus(moves[0], Engine.TYPE_OPPONENT);
+const ev = Strategy.evaluateMove(moves[0], Engine.TYPE_OPPONENT, 'EXPANSION', bonus0);
 assert(typeof ev.score === 'number', "evaluateMove 应返回 score");
 assert(Array.isArray(ev.tags), "evaluateMove 应返回 tags 数组");
 
 // --- Test 2: evaluateMove 对所有走法评分 ---
-const allEvaluated = moves.map(m => Strategy.evaluateMove(m, Engine.TYPE_OPPONENT));
+const allEvaluated = moves.map(m => {
+    const b = getBonus(m, Engine.TYPE_OPPONENT);
+    return Strategy.evaluateMove(m, Engine.TYPE_OPPONENT, 'EXPANSION', b);
+});
 assert(allEvaluated.length === moves.length, "应为每个走法返回评分");
 assert(allEvaluated.every(e => typeof e.score === 'number'), "所有评分应为数字");
 assert(allEvaluated.every(e => Array.isArray(e.tags)), "所有标签应为数组");
@@ -61,13 +75,17 @@ Engine.makeMove({ player: Engine.TYPE_OPPONENT, type: 'place', from: -1, to: 1, 
 Engine.makeMove({ player: Engine.TYPE_AI, type: 'place', from: -1, to: 6, remove: null });
 
 const millMove = { player: Engine.TYPE_OPPONENT, type: 'place', from: -1, to: 2, remove: null };
-const millEv = Strategy.evaluateMove(millMove, Engine.TYPE_OPPONENT);
+const millBonus = getBonus(millMove, Engine.TYPE_OPPONENT);
+const millResult = Engine.makeMove(millMove);
+Engine.undoMove();
+const millEv = Strategy.evaluateMove(millMove, Engine.TYPE_OPPONENT, 'EXPANSION', millBonus, millResult.formedMill);
 assert(millEv.tags.includes('MILL'), "放到位置2应形成磨坊并有 MILL 标签");
 
 // --- Test 6: 占据高连通性位置应有 HUB_CONTROL 标签 ---
 Engine.init();
 const hubMove = { player: Engine.TYPE_OPPONENT, type: 'place', from: -1, to: 4, remove: null }; // 中心位置
-const hubEv = Strategy.evaluateMove(hubMove, Engine.TYPE_OPPONENT);
+const hubBonus = getBonus(hubMove, Engine.TYPE_OPPONENT);
+const hubEv = Strategy.evaluateMove(hubMove, Engine.TYPE_OPPONENT, 'EXPANSION', hubBonus);
 assert(hubEv.tags.includes('HUB_CONTROL'), "中心位置应有 HUB_CONTROL 标签");
 
 // --- 结果 ---

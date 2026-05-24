@@ -141,7 +141,7 @@ function runBattle() {
         const infoLines = [
             `初始：白-${pOpp.piecesOnHand}-${pOpp.piecesOnBoard}-${pOpp.piecesLost} 黑-${pAI.piecesOnHand}-${pAI.piecesOnBoard}-${pAI.piecesLost}`,
             `走法: ${formatMove(result.move)}`,
-            `评分: ${result.score} | 原始: ${chosenEntry.rawScore || 'N/A'}`,
+            `评分: ${result.score}`,
             `标签: [${(chosenEntry.tags || []).join(', ')}]`,
             `策略: ${result.mode}`,
             `用时: ${thinkTime}ms | 节点: ${result.stats.nodeCount} | 深度: ${result.stats.depth}`

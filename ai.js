@@ -20,24 +20,13 @@ const AI = (() => {
     const MODE_SUPPRESSION = 'SUPPRESSION';
     const MODE_DECISIVE   = 'DECISIVE';
 
-    // 评估权重
-    const WEIGHTS = {
-        force:     150,  // 每多一子的分值
-        mobility:   2,   // 每个安全移动的分值
-        threat:    15,   // 每个潜在磨坊的分值
-        fork:      30,   // 每个叉子的分值
-        mill:      40,   // 形成磨坊的分值
-        nearMill:  20,   // 差一步成行的额外奖励
-        opponentNearMill: -30 // 对手差一步成行的惩罚
-    };
-
     // ==================== 性能模式配置 ====================
 
     const MAX_THINK_TIME = 5000; // 最大思考时间 5 秒
 
     const PerformanceConfig = {
-        Eco:    { depth: 1, trapCheck: false, temperature: 0.8, topK: 2, label: '菜鸟' },
-        Normal: { depth: 3, trapCheck: true,  temperature: 0.3, topK: 3, label: '老手' },
+        Eco:    { depth: 1, trapCheck: false, temperature: 1, topK: 5, label: '菜鸟' },
+        Normal: { depth: 3, trapCheck: true,  temperature: 0.8, topK: 4, label: '老手' },
         Master: { depth: 4, trapCheck: true,  temperature: { PLACEMENT: 0.25, MOVING: 0.02, FLYING: 0.00 }, topK: 2, label: '大师' }
     };
 
@@ -74,86 +63,6 @@ const AI = (() => {
         return { ...currentConfig };
     }
 
-    // ==================== 静态评估 ====================
-
-    /**
-     * 对当前局面进行静态评估
-     * 正值表示 AI 优势，负值表示对手优势
-     */
-    function evaluatePosition() {
-        const state = E.getRawState();
-        const ai = state.playerAI;
-        const opponent = state.playerOpponent;
-
-        // 终局判断
-        if (state.gameOver) {
-            if (state.winner === E.TYPE_AI) return 10000;
-            if (state.winner === E.TYPE_OPPONENT) return -10000;
-        }
-
-        // 平滑权重过渡：放置末期逐渐增加机动性权重
-        const phaseFactor = 1 - (Math.max(ai.piecesOnHand, opponent.piecesOnHand) / 9);
-        const forceW = WEIGHTS.force * (1 - phaseFactor * 0.3);  // 放置末期兵力权重降低 30%
-        const mobilityW = WEIGHTS.mobility * (1 + phaseFactor * 2);     // 放置末期机动性权重提升 3 倍
-
-        // 兵力差
-        const forceDiff = (ai.piecesOnBoard + ai.piecesOnHand) - (opponent.piecesOnBoard + opponent.piecesOnHand);
-
-        // 机动性差（仅计算可移动到的空位数，不吃子展开）
-        const mobilityDiff = E.countMobility(E.TYPE_AI) - E.countMobility(E.TYPE_OPPONENT);
-
-        // 阵型张力
-        const aiTension = S.analyzeFormationTension(E.TYPE_AI);
-        const opponentTension = S.analyzeFormationTension(E.TYPE_OPPONENT);
-        const threatDiff = aiTension.playerThreats - opponentTension.playerThreats;
-
-        // near mill 直接奖惩（与 threatDiff 叠加，强化防守意识）
-        const nearMillBonus = WEIGHTS.nearMill * aiTension.playerThreats + WEIGHTS.opponentNearMill * opponentTension.playerThreats;
-
-        // 磨坊数
-        const aiMills = E.countMills(E.TYPE_AI);
-        const opponentMills = E.countMills(E.TYPE_OPPONENT);
-        const millDiff = aiMills - opponentMills;
-
-        // 非对称飞行阶段叉子权重
-        const aiFlying = ai.piecesOnBoard <= 3 && ai.piecesOnHand === 0;
-        const oppFlying = opponent.piecesOnBoard <= 3 && opponent.piecesOnHand === 0;
-        let aiForkW = WEIGHTS.fork;
-        let oppForkW = WEIGHTS.fork;
-        if (aiFlying && oppFlying) {
-            // 双方都在飞：叉子无意义
-            aiForkW = 0; oppForkW = 0;
-        } else if (oppFlying) {
-            // 对手在飞、我方多子：fork 是我方决胜武器
-            aiForkW = 60; oppForkW = 0;
-        } else if (aiFlying) {
-            // 我方在飞、对手多子：fork 是对手决胜武器
-            aiForkW = 0; oppForkW = 60;
-        }
-
-        // 对手接近飞行模式的惩罚
-        let flyThreat = 0;
-        if (oppFlying) flyThreat += 50;
-        if (aiFlying) flyThreat -= 50;
-
-        // 绝望修正：大幅落后时寻找陷阱机会
-        let desperationBonus = 0;
-        if (forceDiff <= -3) {
-            desperationBonus += 20; // 鼓励冒险
-        }
-
-        return (
-            forceW * forceDiff +
-            mobilityW * mobilityDiff +
-            WEIGHTS.threat * threatDiff +
-            aiForkW * aiTension.playerForks - oppForkW * opponentTension.playerForks +
-            WEIGHTS.mill * millDiff +
-            nearMillBonus +
-            flyThreat +
-            desperationBonus
-        );
-    }
-
     // ==================== Minimax + Alpha-Beta ====================
 
     /**
@@ -162,20 +71,21 @@ const AI = (() => {
      * @param {number} alpha - Alpha 值
      * @param {number} beta - Beta 值
      * @param {boolean} isMaximizing - 是否为最大化层（AI 回合）
+     * @param {object|null} lastCtx - 上一层走法上下文
      * @returns {number} 评估分数
      */
-    function minimax(depth, alpha, beta, isMaximizing) {
-        nodeCount++; // 计数
+    function minimax(depth, alpha, beta, isMaximizing, lastCtx) {
+        nodeCount++;
 
         // 时间限制检查
         if (nodeCount % 1000 === 0 && Date.now() - searchStartTime > MAX_THINK_TIME) {
             timeLimitReached = true;
-            return evaluatePosition();
+            return S.evaluatePosition(lastCtx);
         }
 
         // 终止条件：游戏结束或深度耗尽
         if (E.isGameOver() || depth <= 0 || timeLimitReached) {
-            return evaluatePosition();
+            return S.evaluatePosition(lastCtx);
         }
 
         const currentPlayer = isMaximizing ? E.TYPE_AI : E.TYPE_OPPONENT;
@@ -186,34 +96,56 @@ const AI = (() => {
             return isMaximizing ? -10000 : 10000;
         }
 
-        // 走法排序：吃子 > 成行 > 占位，提升 alpha-beta 剪枝效率
+        // 走法排序：吃子 > 成磨 > 近磨，提升 alpha-beta 剪枝效率
         const board = E.getRawState().board;
         const scored = moves.map(m => {
             let quickScore = 0;
-            if (m.remove !== null) quickScore += 1000;  // 吃子最高优先
-            // 轻量成行检测：模拟落子后检查是否成磨坊
+            if (m.remove !== null) quickScore += 1000;
             if (m.to >= 0) {
                 const saved = board[m.to];
                 const savedFrom = m.from >= 0 ? board[m.from] : null;
                 board[m.to] = m.player;
                 if (m.from >= 0) board[m.from] = null;
-                if (E.isInMill(board, m.to, m.player)) quickScore += 500;
+                if (E.isInMill(board, m.to, m.player)) {
+                    quickScore += 500;
+                } else {
+                    // 近磨：落子后所在磨坊线上有 2 己方子 + 1 空位
+                    const posMills = E.POSITION_MILLS[m.to];
+                    for (let k = 0; k < posMills.length; k++) {
+                        const mill = E.MILLS[posMills[k]];
+                        let mine = 0, empty = 0;
+                        for (let n = 0; n < 3; n++) {
+                            if (board[mill[n]] === m.player) mine++;
+                            else if (board[mill[n]] === null) empty++;
+                        }
+                        if (mine === 2 && empty === 1) quickScore += 100;
+                    }
+                }
                 board[m.to] = saved;
                 if (m.from >= 0) board[m.from] = savedFrom;
             }
-            if (m.type === 'place') quickScore += 10;
             return { move: m, quickScore };
         });
         scored.sort((a, b) => b.quickScore - a.quickScore);
 
+        // 循环不变式：对手走法统计在 makeMove 前计算一次
+        const oppType = currentPlayer === E.TYPE_AI ? E.TYPE_OPPONENT : E.TYPE_AI;
+        const oppMovesBefore = E.generateLegalMoves(oppType);
+        let oppCapturesBefore = 0;
+        for (let j = 0; j < oppMovesBefore.length; j++) {
+            if (oppMovesBefore[j].remove !== null) oppCapturesBefore++;
+        }
+
         if (isMaximizing) {
             let maxEval = -Infinity;
             for (let i = 0; i < scored.length; i++) {
-                const result = E.makeMove(scored[i].move);
+                const move = scored[i].move;
+                const result = E.makeMove(move);
+                const bonus = S.computeBonus(move, currentPlayer, oppCapturesBefore);
                 const nextIsMax = result.formedMill ? isMaximizing : !isMaximizing;
-                // 成行+吃子是同一个逻辑回合，成行时不扣深度
                 const nextDepth = result.formedMill ? depth : depth - 1;
-                const eval_ = minimax(nextDepth, alpha, beta, nextIsMax);
+                const ctx = { player: currentPlayer, move, result, bonus };
+                const eval_ = minimax(nextDepth, alpha, beta, nextIsMax, ctx);
                 E.undoMove();
                 maxEval = Math.max(maxEval, eval_);
                 alpha = Math.max(alpha, eval_);
@@ -223,11 +155,13 @@ const AI = (() => {
         } else {
             let minEval = Infinity;
             for (let i = 0; i < scored.length; i++) {
-                const result = E.makeMove(scored[i].move);
+                const move = scored[i].move;
+                const result = E.makeMove(move);
+                const bonus = S.computeBonus(move, currentPlayer, oppCapturesBefore);
                 const nextIsMax = result.formedMill ? isMaximizing : !isMaximizing;
-                // 成行+吃子是同一个逻辑回合，成行时不扣深度
                 const nextDepth = result.formedMill ? depth : depth - 1;
-                const eval_ = minimax(nextDepth, alpha, beta, nextIsMax);
+                const ctx = { player: currentPlayer, move, result, bonus };
+                const eval_ = minimax(nextDepth, alpha, beta, nextIsMax, ctx);
                 E.undoMove();
                 minEval = Math.min(minEval, eval_);
                 beta = Math.min(beta, eval_);
@@ -254,7 +188,7 @@ const AI = (() => {
         }
 
         const forceDiff = playerData.piecesOnBoard - oppData.piecesOnBoard;
-        const isOpponentNearFlying = oppData.piecesOnBoard === 3 && oppData.piecesOnHand === 0;
+        const isOpponentNearFlying = oppData.piecesOnBoard === 4 && oppData.piecesOnHand === 0;
         const playerMobility = S.calculateEffectiveMobility(player);
         const oppMobility = S.calculateEffectiveMobility(opp);
         const mobilityGap = playerMobility.safe - oppMobility.safe;
@@ -277,32 +211,6 @@ const AI = (() => {
         return MODE_EXPANSION;
     }
 
-    function applyModeBonus(score, tags, mode) {
-        let bonus = 0;
-
-        // 通用加成（所有模式下都生效）
-        if (tags.includes('NEAR_MILL')) bonus += WEIGHTS.nearMill;  // 差一步成行
-        if (tags.includes('MILL')) bonus += 200;       // 形成磨坊（极大鼓励）
-        if (tags.includes('CAPTURE')) bonus += 150;    // 吃子（极大鼓励）
-        if (tags.includes('BLOCK')) bonus += 100;      // 阻止对方成行（高优先级）
-
-        switch (mode) {
-            case MODE_EXPANSION:
-                if (tags.includes('HUB_CONTROL')) bonus += 15;
-                if (tags.includes('LAYOUT')) bonus += 10;
-                break;
-            case MODE_SUPPRESSION:
-                if (tags.includes('SQUEEZE')) bonus += 20;
-                if (tags.includes('ANTI_FLYING')) bonus += 15;
-                break;
-            case MODE_DECISIVE:
-                if (tags.includes('ATTACK')) bonus += 15;
-                break;
-        }
-
-        return score + bonus;
-    }
-
     // ==================== 陷阱检测 ====================
 
     /**
@@ -318,15 +226,25 @@ const AI = (() => {
         const isMax = (player === E.TYPE_AI);
         const dDeep = deepDepth || currentConfig.depth;
 
-        // 浅层评估 (D=0 = 静态评估，几乎零开销)
-        E.makeMove(move);
-        const score_shallow = evaluatePosition();
+        // 走前统计对手可吃子走法数
+        const oppType = player === E.TYPE_AI ? E.TYPE_OPPONENT : E.TYPE_AI;
+        const oppMovesBefore = E.generateLegalMoves(oppType);
+        let oppCapturesBefore = 0;
+        for (let j = 0; j < oppMovesBefore.length; j++) {
+            if (oppMovesBefore[j].remove !== null) oppCapturesBefore++;
+        }
+
+        // 浅层评估 (D=0 = 静态评估 + 走法奖励)
+        const r1 = E.makeMove(move);
+        const bonus = S.computeBonus(move, player, oppCapturesBefore);
+        const ctx = { player, move, result: r1, bonus };
+        const score_shallow = S.evaluatePosition(ctx);
         E.undoMove();
 
         // 深层评估
         const r2 = E.makeMove(move);
         const nextIsMax = r2.formedMill ? isMax : !isMax;
-        const score_deep = -minimax(dDeep - 1, -Infinity, Infinity, nextIsMax);
+        const score_deep = -minimax(dDeep - 1, -Infinity, Infinity, nextIsMax, ctx);
         E.undoMove();
 
         return {
@@ -414,6 +332,14 @@ const AI = (() => {
         let bestScores = [];
         let completedDepth = 0;
 
+        // 循环不变式：对手走法统计在所有迭代前计算一次
+        const oppType = player === E.TYPE_AI ? E.TYPE_OPPONENT : E.TYPE_AI;
+        const oppMovesBefore = E.generateLegalMoves(oppType);
+        let oppCapturesBefore = 0;
+        for (let j = 0; j < oppMovesBefore.length; j++) {
+            if (oppMovesBefore[j].remove !== null) oppCapturesBefore++;
+        }
+
         for (let iterDepth = 1; iterDepth <= d; iterDepth++) {
             // 每层迭代前检查时间
             if (Date.now() - startTime > MAX_THINK_TIME) {
@@ -445,25 +371,26 @@ const AI = (() => {
                 }
 
                 const move = orderedMoves[i];
+
                 const result = E.makeMove(move);
+                const bonus = S.computeBonus(move, player, oppCapturesBefore);
                 const nextIsMax = result.formedMill ? isAI : !isAI;
                 const nextDepth = result.formedMill ? iterDepth : iterDepth - 1;
-                const rawScore = isAI ? minimax(nextDepth, -Infinity, Infinity, nextIsMax) : -minimax(nextDepth, -Infinity, Infinity, nextIsMax);
+                const ctx = { player, move, result, bonus };
+                const rawScore = isAI ? minimax(nextDepth, -Infinity, Infinity, nextIsMax, ctx) : -minimax(nextDepth, -Infinity, Infinity, nextIsMax, ctx);
                 E.undoMove();
 
                 if (timeLimitReached) break;
 
-                // 用 evaluateMove 为走法生成标签（替代 report.suggestedMoves 查找）
-                // TODO: applyModeBonus 与 evaluatePosition 存在重复加分，后续评估是否移除
-                const ev = S.evaluateMove(move, player);
+                // 复用 bonus 和 formedMill 给 evaluateMove，避免重复计算
+                const ev = S.evaluateMove(move, player, mode, bonus, result.formedMill);
 
-                // 根据上下文追加语义标签（原先由 generateReport 添加）
+                // 放置阶段 + HUB_CONTROL → 追加 LAYOUT 标签供 narrator 使用
                 if (context.phase === 'PLACEMENT' && ev.tags.includes('HUB_CONTROL')) {
                     ev.tags.push('LAYOUT');
                 }
-                const finalScore = applyModeBonus(rawScore, ev.tags, mode);
 
-                iterScores.push({ move, score: finalScore, rawScore, tags: ev.tags });
+                iterScores.push({ move, score: rawScore, tags: ev.tags });
             }
 
             // 本层完整评估了所有走法 → 保存结果，继续下一层
@@ -594,7 +521,7 @@ const AI = (() => {
         selectBestMoveForPlayer,
         getPlayerContext,
         determineMode,
-        evaluatePosition,
+        evaluatePosition: (ctx) => S.evaluatePosition(ctx),
         evaluateDepthGap,
         detectTraps,
 
