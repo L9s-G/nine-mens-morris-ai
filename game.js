@@ -323,14 +323,11 @@ const Game = (() => {
         setThinking(true);
         playerMoves = [];
 
-        // 让 UI 有时间刷新
-        await sleep(50);
-
         // 走前评估：narrator 分析局面，立即发出吐槽
         const preMove = Narrator.assessPosition();
         showAILine(preMove.line);
 
-        const result = AI.selectBestMove();
+        const result = await AI.selectBestMove();
 
         if (!result || !result.move) {
             setThinking(false);
@@ -340,7 +337,7 @@ const Game = (() => {
 
         await animateAndExecute(result.move);
 
-        // debug 信息
+        // debug 信息（不受弹幕开关影响）
         if (debugMode) {
             const { depth, targetDepth, elapsed, nodeCount, topK, temperature } = result.stats;
             const topN = result.allScores.slice(0, topK);
@@ -353,7 +350,7 @@ const Game = (() => {
                 const eat = m.remove != null && m.type !== 'remove' ? `x${m.remove}` : '';
                 return `[${desc}${eat}|${s.score}]`;
             }).join(' ');
-            showAILine(`{${debugText} D${depth}/${targetDepth} ${elapsed}ms ${nodeCount}n K${topK} T${temperature}}`);
+            showAILineRaw(`${debugText} < D${depth}/${targetDepth} ${elapsed}ms ${nodeCount}n K${topK} T${temperature}`);
         }
 
         // 走后吐槽
@@ -572,6 +569,10 @@ const Game = (() => {
 
     function showAILine(text) {
         if (!settings.danmaku) return;
+        showAILineRaw(text);
+    }
+
+    function showAILineRaw(text) {
         if (isLandscape()) {
             showBubble(text);
         } else {
@@ -586,8 +587,8 @@ const Game = (() => {
         item.className = 'danmaku-item';
         item.textContent = text;
 
-        // 随机纵向位置（棋盘区域的 20%-80%）
-        const topPercent = 20 + Math.random() * 60;
+        // 随机纵向位置（屏幕上方 30%）
+        const topPercent = Math.random() * 30;
         item.style.top = `${topPercent}%`;
         item.style.left = '100%';
 
@@ -784,6 +785,10 @@ const Game = (() => {
 
         document.getElementById('btn-new-game').addEventListener('click', () => newGame());
         document.getElementById('btn-result-new-game').addEventListener('click', () => newGame());
+        document.getElementById('panel-header').querySelector('h1').addEventListener('dblclick', (e) => {
+            e.target.textContent = 'Χρόνια πολλά για τα 16α γενέθλιά σου, πριγκίπισσά μου, Andrea.';
+            e.target.classList.add('birthday');
+        });
         document.getElementById('btn-settings').addEventListener('click', openSettings);
         document.getElementById('btn-settings-confirm').addEventListener('click', confirmSettings);
         document.getElementById('btn-settings-cancel').addEventListener('click', cancelSettings);

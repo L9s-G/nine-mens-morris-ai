@@ -1,12 +1,69 @@
 // ========================================================
 // Nine Men's Morris AI 控制器 (AI Controller)
 // 职责：难度配置 + 走法选择（基于 Searcher 排序 + 温度随机）
-//   - 依赖：Engine, Evaluator, Searcher
-//   - 不含搜索逻辑（委托给 Searcher）
+//   - 依赖：Engine, Evaluator, Searcher (via Web Worker)
+//   - 不含搜索逻辑（委托给 Worker 中的 Searcher）
 // ========================================================
 
 const AI = (() => {
     const E = Engine;
+
+    // ==================== Web Worker 管理 ====================
+
+    let worker = null;
+    let workerReady = false;
+
+    function initWorker() {
+        if (worker) return;
+
+        worker = new Worker('searcher.worker.js');
+
+        worker.onmessage = function (e) {
+            const { success, result, error } = e.data;
+            if (success) {
+                workerReady = true;
+                // 如果有 pending 的请求，处理它
+                if (pendingResolve) {
+                    const resolve = pendingResolve;
+                    pendingResolve = null;
+                    resolve(result);
+                }
+            } else {
+                console.error('Worker error:', error);
+                if (pendingReject) {
+                    const reject = pendingReject;
+                    pendingReject = null;
+                    reject(new Error(error));
+                }
+            }
+        };
+
+        worker.onerror = function (e) {
+            console.error('Worker onerror:', e);
+            if (pendingReject) {
+                const reject = pendingReject;
+                pendingReject = null;
+                reject(e.error || new Error('Worker error'));
+            }
+        };
+    }
+
+    let pendingResolve = null;
+    let pendingReject = null;
+
+    function searchWithWorker(player, depth, timeLimit) {
+        return new Promise((resolve, reject) => {
+            if (!worker) {
+                initWorker();
+            }
+
+            pendingResolve = resolve;
+            pendingReject = reject;
+
+            const fen = E.toFen();
+            worker.postMessage({ fen, player, depth, timeLimit });
+        });
+    }
 
     // ==================== 难度配置 ====================
 
@@ -64,12 +121,15 @@ const AI = (() => {
     /**
      * 为指定玩家选择最佳走法（支持双人对战）
      * @param {number} player - TYPE_OPPONENT 或 TYPE_AI
-     * @returns {{ move, score, allScores: Array, stats: object }}
+     * @returns {Promise<{ move, score, allScores: Array, stats: object }>}
      */
-    function selectBestMoveForPlayer(player) {
+    async function selectBestMoveForPlayer(player) {
         const phase = E.getPhase(player);
         const depth = resolveDepth(currentConfig.depth, phase);
-        const result = Searcher.search(player, depth);
+
+        // 使用 Worker 执行搜索
+        const result = await searchWithWorker(player, depth);
+
         if (!result) return null;
 
         let temp = resolveTemperature(currentConfig.temperature, phase);
@@ -100,8 +160,9 @@ const AI = (() => {
 
     /**
      * AI 选择最佳走法（兼容旧接口）
+     * @returns {Promise}
      */
-    function selectBestMove() {
+    async function selectBestMove() {
         return selectBestMoveForPlayer(E.TYPE_AI);
     }
 
@@ -115,6 +176,11 @@ const AI = (() => {
         const ctx = move ? { player: move.player, move } : null;
         return Evaluator.evaluate(0, ctx);
     }
+
+    // ==================== 初始化 ====================
+
+    // 预加载 Worker
+    initWorker();
 
     // ==================== 公开接口 ====================
 
