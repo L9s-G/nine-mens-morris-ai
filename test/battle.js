@@ -11,19 +11,22 @@ const vm = require('vm');
 const path = require('path');
 const srcDir = path.resolve(__dirname, '..');
 const engineCode = fs.readFileSync(path.join(srcDir, 'engine.js'), 'utf-8').replace('const Engine = (() => {', 'Engine = (() => {');
-const strategyCode = fs.readFileSync(path.join(srcDir, 'strategy.js'), 'utf-8').replace('const Strategy = (() => {', 'Strategy = (() => {');
+const evaluatorCode = fs.readFileSync(path.join(srcDir, 'evaluator.js'), 'utf-8').replace('const Evaluator = (() => {', 'Evaluator = (() => {');
+const searcherCode = fs.readFileSync(path.join(srcDir, 'searcher.js'), 'utf-8').replace('const Searcher = (() => {', 'Searcher = (() => {');
 const aiCode = fs.readFileSync(path.join(srcDir, 'ai.js'), 'utf-8').replace('const AI = (() => {', 'AI = (() => {');
 const narratorCode = fs.readFileSync(path.join(srcDir, 'narrator.js'), 'utf-8').replace('const Narrator = (() => {', 'Narrator = (() => {');
 
-const sandbox = { console, Engine: null, Strategy: null, AI: null, Narrator: null, Math };
+const sandbox = { console, Engine: null, Evaluator: null, Searcher: null, AI: null, Narrator: null, Math };
 vm.createContext(sandbox);
 vm.runInContext(engineCode, sandbox);
-vm.runInContext(strategyCode, sandbox);
+vm.runInContext(evaluatorCode, sandbox);
+vm.runInContext(searcherCode, sandbox);
 vm.runInContext(aiCode, sandbox);
 vm.runInContext(narratorCode, sandbox);
 
 const Engine = sandbox.Engine;
-const Strategy = sandbox.Strategy;
+const Evaluator = sandbox.Evaluator;
+const Searcher = sandbox.Searcher;
 const AI = sandbox.AI;
 const Narrator = sandbox.Narrator;
 
@@ -103,7 +106,7 @@ function runBattle() {
 
     let moveNum = 0;
     let gameOver = false;
-    const MAX_MOVES = 200; // 防止无限循环
+    const MAX_MOVES = 1000; // 防止无限循环（测试 250 步判和）
 
     while (!gameOver && moveNum < MAX_MOVES) {
         const state = Engine.getState();
@@ -134,7 +137,6 @@ function runBattle() {
 
         // 棋盘 + 走法信息并排显示
         const boardLines = getBoardLines(Engine.getBoard());
-        const chosenEntry = result.allScores[0];
         const pOpp = state.playerOpponent;
         const pAI = state.playerAI;
 
@@ -142,8 +144,6 @@ function runBattle() {
             `初始：白-${pOpp.piecesOnHand}-${pOpp.piecesOnBoard}-${pOpp.piecesLost} 黑-${pAI.piecesOnHand}-${pAI.piecesOnBoard}-${pAI.piecesLost}`,
             `走法: ${formatMove(result.move)}`,
             `评分: ${result.score}`,
-            `标签: [${(chosenEntry.tags || []).join(', ')}]`,
-            `策略: ${result.mode}`,
             `用时: ${thinkTime}ms | 节点: ${result.stats.nodeCount} | 深度: ${result.stats.depth}`
         ];
 
@@ -153,10 +153,10 @@ function runBattle() {
         log('');
 
         // 检查游戏结束
-        const newState = Engine.getState();
-        if (newState.gameOver) {
+        if (Engine.isGameOver()) {
             gameOver = true;
-            const winner = newState.winner === Engine.TYPE_OPPONENT ? `${mode1}(白)` : `${mode2}(黑)`;
+            const w = Engine.getWinner();
+            const winner = w === null ? '平局' : w === Engine.TYPE_OPPONENT ? `${mode1}(白)` : `${mode2}(黑)`;
             log('========================================================');
             log(`游戏结束！胜者: ${winner}`);
             log(`总手数: ${moveNum}`);
@@ -176,7 +176,7 @@ function runBattle() {
     }
     console.log(`日志已保存: ${outputFile}`);
 
-    return { moves: moveNum, winner: Engine.getState().winner, elapsed: Date.now() - t0 };
+    return { moves: moveNum, winner: Engine.getWinner(), elapsed: Date.now() - t0 };
 }
 
 // ==================== 执行 ====================

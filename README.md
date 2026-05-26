@@ -1,96 +1,190 @@
-# Nine Men's Morris AI
+# Nine Men's Morris
 
-A pure JavaScript Nine Men's Morris (九子棋) AI engine featuring Minimax search, dynamic strategy state machine, hidden trap detection, and a personality-driven narrator system. Zero dependencies.
+一个纯前端实现的九子棋（Nine Men's Morris）游戏，内置具有人格的 AI 对手。
 
-## Features
+**在线体验**：直接浏览器打开 `index.html`，无需安装任何依赖。
 
-- **Complete game engine** — Placement, Moving, and Flying phases; full move generation with undo support
-- **Three AI difficulty modes:**
-  - **Eco** — Depth 1, high temperature (randomized), beginner-friendly
-  - **Normal** — Depth 3, trap detection, balanced challenge
-  - **Master** — Depth 4, trap detection, near-deterministic play
-- **Dynamic strategy state machine** — Switches between Expansion, Suppression, and Decisive Strike based on force count, mobility gap, and game phase
-- **Hidden trap detection** — Depth-gap evaluation identifies moves that look bad at shallow depth but are winning at deeper analysis
-- **Personality narrator** — Emotion-driven Chinese dialogue (arrogant / confident / neutral / cautious / desperate); supports offline word bank and optional LLM integration
-- **Tactical report system** — Structured JSON output with context, metrics, scored moves, and semantic tags
-- **Weighted random selection** — Softmax-based move selection with configurable temperature for each difficulty
-- **Performance time guard** — 5-second search limit with per-1000-node time checks
+## 游戏规则
 
-## Tech Stack
+九子棋是一款两人对弈的古老策略棋盘游戏，棋盘由 24 个交点和连接线组成。
 
-- **Vanilla JavaScript** (ES6+, IIFE module pattern)
-- **Zero dependencies** — No npm packages, no bundlers, no frameworks
+**流程**：
 
-## Project Structure
+1. **放置阶段**（PLACEMENT）：双方各 9 子，轮流放置到棋盘空位上
+2. **走子阶段**（MOVING）：手上的棋子放完后，沿连线移动到相邻空位
+3. **飞行阶段**（FLYING）：当一方场上仅剩 3 子时，可飞行到任意空位
 
-```
-├── engine.js           # Core game engine (state, rules, move generation, undo)
-├── strategy.js         # Tactical analysis (effective mobility, formation tension, move evaluation)
-├── ai.js               # AI controller (minimax, alpha-beta, strategy modes, trap detection)
-├── narrator.js         # Personality/dialogue system (offline word bank + LLM prompt)
-├── AI-Master.md        # Master AI design specification
-├── CLAUDE.md           # Project development guidelines
-├── test/
-│   ├── test_undo.js        # Undo stress test
-│   ├── test_strategy.js    # Strategy unit tests
-│   ├── test_ai.js          # AI unit tests
-│   ├── test_narrator.js    # Narrator tests
-│   ├── test_perf.js        # Performance benchmarks
-│   ├── battle.js           # AI vs AI battle runner
-│   └── run_battles.sh      # Batch battle script
-└── .gitignore
-```
+**核心机制**：
 
-## Architecture
+- **成磨坊**（Mill）：三子连成一线（横/竖），即"成行"
+- **吃子**：成行后可吃掉对方一颗棋子（优先吃不在磨坊中的棋子）
+- **胜利条件**：将对手棋子减少到 2 颗，或堵死对手所有走法
 
-Four-layer module architecture using the Revealing Module Pattern (IIFE):
+## 功能特性
+
+- **3 级 AI 难度**：菜鸟（Eco）、老手（Normal）、大师（Master）
+- **3 套视觉主题**：暗夜、马卡龙、赛博
+- **先手选择**：玩家先手或 AI 先手
+- **AI 人格系统**：AI 会根据局面情绪说出台词（弹幕/气泡两种呈现方式）
+- **棋谱导出**：游戏结束后可复制完整对战记录
+- **Debug 模式**：双击棋盘中心显示位置编号和 AI 思考细节
+- **响应式设计**：横屏气泡聊天、竖屏弹幕飘过
+- **三次重复判和**：同一局面出现三次自动判平局
+
+## 项目结构
 
 ```
-Engine (game state, rules, move generation, undo)
-  └─ Strategy (effective mobility, formation tension, move evaluation)
-       └─ AI (minimax + alpha-beta, strategy state machine, trap detection)
-            └─ Narrator (emotion system, offline/online dialogue)
+├── index.html          # 入口页面（SVG 棋盘 + 状态面板）
+├── style.css           # 样式表（CSS 变量体系 + 3 套主题）
+├── engine.js           # 核心引擎：棋盘拓扑、规则、走法生成/执行/撤销、FEN 序列化
+├── evaluator.js        # 局面评估器：磨坊分析、机动性、静态评分
+├── searcher.js         # 搜索引擎：Minimax + Alpha-Beta 剪枝 + 迭代加深 + 时间墙
+├── ai.js               # AI 控制器：难度配置、温度随机选法
+├── strategy.js         # 战术分析层：有效机动性、阵型张力、走法标签
+├── narrator.js         # 语义叙述者：离线词库 + 在线 LLM Prompt 生成
+├── game.js             # UI 控制器：棋盘渲染、交互动画、设置管理
+└── test/
+    ├── battle.js       # AI 对战脚本（Node.js）
+    ├── run_battles.sh  # 循环赛脚本（24 场，3 级 AI 全组合）
+    ├── analyze.py      # 对战日志分析（Python）
+    ├── battle_logs/    # 对战日志
+    └── analysis/       # 分析结果（games.json / moves.json / summary.json）
 ```
 
-Each layer exposes a clean public API. The upper layers depend on the lower ones; no circular dependencies.
+## 架构设计
 
-## Running Tests
+模块间通过全局单例通信，职责边界清晰：
 
-Requires Node.js:
+```
+┌─────────────────────────────────────────────────┐
+│  game.js (UI)                                   │
+│  SVG 棋盘渲染 · 交互动画 · 设置管理             │
+├─────────────────────────────────────────────────┤
+│  ai.js (AI 控制器)                               │
+│  难度配置 · 温度随机选择                         │
+├──────────────┬──────────────────────────────────┤
+│ searcher.js  │  evaluator.js     │ strategy.js  │
+│ Minimax+αβ   │  磨坊分析          │ 阵型张力     │
+│ 迭代加深     │  机动性评估        │ 走法标签     │
+│ 时间墙       │  静态评分          │ 战术报告     │
+├──────────────┴──────────────────────────────────┤
+│  engine.js (核心引擎)                            │
+│  棋盘拓扑 · 走法生成/执行/撤销 · FEN · 终局检测 │
+└─────────────────────────────────────────────────┘
+```
+
+**engine.js** 是纯规则层，不含任何策略评估逻辑。所有 AI 相关计算在 `evaluator.js`、`searcher.js`、`strategy.js` 中完成。
+
+## AI 引擎
+
+### 搜索算法
+
+- **Minimax + Alpha-Beta 剪枝**：标准博弈树搜索
+- **迭代加深**：从深度 1 逐步加深到目标深度，每层结果排序后复用于下一层的走法顺序
+- **时间墙**：默认 5 秒，每 1024 个节点检查一次，超时立即返回当前最优结果
+- **成磨不消耗深度**：形成磨坊后同一玩家继续吃子，不计入搜索深度
+
+### 难度配置
+
+| 难度 | 搜索深度 | 温度 | Top-K | 典型用时 |
+|------|---------|------|-------|---------|
+| 菜鸟 | 1-2     | 1.0  | 5     | ~2ms    |
+| 老手 | 2-3     | 0.8  | 4     | ~34ms   |
+| 大师 | 3-4     | 0-0.25 | 2  | ~319ms  |
+
+温度越高走法越随机，Top-K 越大候选越多。大师模式在不同阶段使用不同温度（放置期略高、走子期极低）。
+
+### 评估体系
+
+**静态评估**（`evaluator.js`）：
+
+- 终局分数（±10000），深度加权偏好更快的胜利
+- 磨坊威胁：nearMill（2+1 可达）、hardNearMill（对手不可达）、rollingFork（滚动叉子）、hardRollingFork
+- 机动性：半衰递减 `0.5^(mobility-1)`
+- 吃子价值：非线性，取决于对手剩余子数
+
+**战术分析**（`strategy.js`）：
+
+- 有效机动性（过滤自杀位）
+- 阵型张力（双重威胁 / 叉子检测）
+- 走法标签系统：MILL、CAPTURE、BLOCK、SQUEEZE、NEAR_MILL、ANTI_FLYING、HUB_CONTROL 等
+- 三种策略模式：EXPANSION（扩张）、SUPPRESSION（压制）、DECISIVE（决战）
+
+## AI 人格系统
+
+AI 配有一套完整的台词系统（`narrator.js`），根据走法标签和局面评分生成个性化台词。
+
+**情绪分级**（基于 minimax 评分）：
+
+| 情绪 | 分数范围 | 语气 |
+|------|---------|------|
+| 傲慢 | >= 500  | 自信、嘲讽 |
+| 从容 | 100~499 | 淡定、暗示 |
+| 中性 | -99~99  | 平实 |
+| 谨慎 | -100~-399 | 反击、挑衅 |
+| 绝望 | < -400  | 自嘲、认怂 |
+
+**台词匹配优先级**：4 标签组合 > 3 标签组合 > 2 标签组合 > 单标签 > 模式台词。
+
+支持两种模式：
+
+- **离线模式**：从预设词库中随机选取，组合标签优先匹配
+- **在线模式**：生成 LLM System Prompt，可对接外部大模型
+
+## 测试工具
+
+### AI 对战
 
 ```bash
-cd test
-node test_undo.js
-node test_strategy.js
-node test_ai.js
-node test_narrator.js
-node test_perf.js
+# 单场对战
+node test/battle.js Normal Master 1 output.log
+
+# 24 场循环赛（3 级 AI 全组合，每对 4 轮轮流先手）
+bash test/run_battles.sh
 ```
 
-## AI vs AI Battles
+### 日志分析
 
 ```bash
-cd test
-
-# Single battle: node battle.js <mode1> <mode2> <rounds> <logfile>
-node battle.js Normal Master 1 battle.log
-
-# Batch battles (parallel)
-bash run_battles.sh
+# 分析对战日志，输出 JSON 统计
+python3 test/analyze.py [logs_dir]
+# 默认扫描 test/battle_logs/，输出到 test/analysis/
 ```
 
-## AI Design Highlights
+输出文件：
 
-| Concept | Description |
-|---------|-------------|
-| **Minimax + Alpha-Beta** | Adversarial search with move ordering for better pruning |
-| **Dynamic Depth** | Depth adjusts per strategy mode (+1 for Suppression, -1 for Flying) |
-| **Strategy State Machine** | Expansion / Suppression / Decisive, driven by force diff & mobility gap |
-| **Hidden Trap** | `TrapScore = Score(D_deep) - Score(D_shallow)` — finds deceptive winning moves |
-| **Softmax Temperature** | Controls move randomization: high for Eco, near-zero for Master |
-| **Effective Mobility** | Counts only moves that don't immediately lose a piece |
-| **Phase-Aware Weights** | Evaluation weights shift smoothly as pieces leave hand (force ↓, mobility ↑) |
+- `games.json`：逐局汇总（胜负、手数、用时）
+- `moves.json`：每步明细（走法、评分、节点数、深度、FEN）
+- `summary.json`：按 AI 模式聚合（胜率、性能百分位、深度分布）
 
-## License
+### 循环赛结果（24 场样本）
 
-MIT
+| 模式 | 胜 | 负 | 平 | 平均用时 | 平均节点数 |
+|------|---|---|---|---------|-----------|
+| 菜鸟 | 1 | 3 | 12 | 2ms     | 20        |
+| 老手 | 1 | 4 | 11 | 34ms    | 5,135     |
+| 大师 | 10 | 5 | 1  | 319ms   | 67,531    |
+
+## 快速开始
+
+```bash
+# 克隆仓库
+git clone <repo-url>
+cd nine-mens-morris-ai
+
+# 直接用浏览器打开
+open index.html        # macOS
+start index.html       # Windows
+xdg-open index.html    # Linux
+```
+
+无需 `npm install`，无构建步骤，零依赖。
+
+## 技术细节
+
+- **棋盘表示**：24 位数组，`null`（空）/ `1`（白/玩家）/ `2`（黑/AI）
+- **棋盘拓扑**：预计算的邻居表（`NEIGHBORS`）和磨坊表（`MILLS`，共 16 条线）
+- **MILL-FEN 序列化**：`board/currentPlayer/white/black/millMove`，用于调试、存档和置换表
+- **位置哈希**：基于 3 进制增量哈希，滑动窗口（36 步）检测三次重复
+- **SVG 棋盘**：viewBox 600x600，24 个交点通过 7x7 网格坐标映射
+- **动画系统**：棋子放置/移动有 CSS transition 动画，吃子有闪烁+缩小消失效果

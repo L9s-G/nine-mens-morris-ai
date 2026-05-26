@@ -14,6 +14,55 @@ const Strategy = (() => {
     // ==================== 机动性分析 ====================
 
     /**
+     * 计算玩家的原始机动性（可移动到的空位数）
+     * 比 generateLegalMoves 更轻量：不生成走法对象，不吃子展开
+     */
+    function countMobility(player) {
+        const state = E.getStateView();
+        const p = player === E.TYPE_OPPONENT ? state.playerOpponent : state.playerAI;
+        const isFlying = p.piecesOnHand === 0 && p.piecesOnBoard === 3;
+        const isPlacement = p.piecesOnHand > 0;
+        const board = state.board;
+
+        if (isPlacement) {
+            let count = 0;
+            for (let i = 0; i < E.BOARD_SIZE; i++) {
+                if (board[i] === null) count++;
+            }
+            return count;
+        }
+
+        let count = 0;
+        for (let i = 0; i < E.BOARD_SIZE; i++) {
+            if (board[i] !== player) continue;
+            if (isFlying) {
+                for (let j = 0; j < E.BOARD_SIZE; j++) {
+                    if (board[j] === null) count++;
+                }
+            } else {
+                const neighbors = E.NEIGHBORS[i];
+                for (let j = 0; j < neighbors.length; j++) {
+                    if (board[neighbors[j]] === null) count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    /**
+     * 计算玩家在棋盘上的完整磨坊数
+     */
+    function countMills(player) {
+        const board = E.getStateView().board;
+        let count = 0;
+        for (let i = 0; i < E.MILLS.length; i++) {
+            const mill = E.MILLS[i];
+            if (board[mill[0]] === player && board[mill[1]] === player && board[mill[2]] === player) count++;
+        }
+        return count;
+    }
+
+    /**
      * 计算有效机动性
      * 过滤掉"走后会被对方立即成行"的自杀位
      * @returns {{ total: number, safe: number }}
@@ -52,7 +101,7 @@ const Strategy = (() => {
      */
     function analyzeFormationTension(player) {
         const opp = player === E.TYPE_OPPONENT ? E.TYPE_AI : E.TYPE_OPPONENT;
-        const board = E.getRawState().board;
+        const board = E.getStateView().board;
 
         let playerThreats = 0;
         let oppThreats = 0;
@@ -110,7 +159,7 @@ const Strategy = (() => {
      * @returns {number} 局面分数（正 = 优势，负 = 劣势）
      */
     function computeBoardScore(player) {
-        const state = E.getRawState();
+        const state = E.getStateView();
         const playerData = player === E.TYPE_AI ? state.playerAI : state.playerOpponent;
         const oppData = player === E.TYPE_AI ? state.playerOpponent : state.playerAI;
         const opp = player === E.TYPE_AI ? E.TYPE_OPPONENT : E.TYPE_AI;
@@ -120,15 +169,15 @@ const Strategy = (() => {
         const mobilityW = WEIGHTS.mobility * (1 + phaseFactor * 2);
 
         const forceDiff = (playerData.piecesOnBoard + playerData.piecesOnHand) - (oppData.piecesOnBoard + oppData.piecesOnHand);
-        const mobilityDiff = E.countMobility(player) - E.countMobility(opp);
+        const mobilityDiff = countMobility(player) - countMobility(opp);
 
         const playerTension = analyzeFormationTension(player);
         const oppTension = analyzeFormationTension(opp);
         const threatDiff = playerTension.playerThreats - oppTension.playerThreats;
         const nearMillBonus = WEIGHTS.nearMill * playerTension.playerThreats + WEIGHTS.opponentNearMill * oppTension.playerThreats;
 
-        const playerMills = E.countMills(player);
-        const oppMills = E.countMills(opp);
+        const playerMills = countMills(player);
+        const oppMills = countMills(opp);
         const millDiff = playerMills - oppMills;
 
         const playerFlying = playerData.piecesOnBoard <= 3 && playerData.piecesOnHand === 0;
@@ -167,7 +216,7 @@ const Strategy = (() => {
      */
     function computeBonus(move, player, oppCapturesBefore) {
         const opp = player === E.TYPE_AI ? E.TYPE_OPPONENT : E.TYPE_AI;
-        const board = E.getRawState().board;
+        const board = E.getStateView().board;
 
         let nearMill = false;
         if (move.type !== 'remove') {
@@ -218,7 +267,7 @@ const Strategy = (() => {
 
         let bonus = 0;
 
-        if (ctx.result && ctx.result.formedMill) bonus += WEIGHTS.millFormed;
+        if (ctx.formedMill) bonus += WEIGHTS.millFormed;
         if (ctx.move.remove !== null) bonus += WEIGHTS.capture;
 
         const b = ctx.bonus;
@@ -240,7 +289,7 @@ const Strategy = (() => {
      * @returns {number} 从 AI 视角的评估分（±10000 为终局）
      */
     function evaluatePosition(ctx) {
-        const state = E.getRawState();
+        const state = E.getStateView();
         if (state.gameOver) {
             if (state.winner === E.TYPE_AI) return 10000;
             if (state.winner === E.TYPE_OPPONENT) return -10000;
@@ -276,7 +325,7 @@ const Strategy = (() => {
 
         // ANTI_FLYING：需要棋盘状态，bonus 不含此信息
         if (!tags.includes('ANTI_FLYING')) {
-            const state = E.getRawState();
+            const state = E.getStateView();
             const oppData = player === E.TYPE_OPPONENT ? state.playerAI : state.playerOpponent;
             if (oppData.piecesOnBoard <= 4 && oppData.piecesOnHand === 0) {
                 tags.push('ANTI_FLYING');
@@ -338,6 +387,8 @@ const Strategy = (() => {
     // ==================== 公开接口 ====================
     return {
         WEIGHTS,
+        countMobility,
+        countMills,
         computeBoardScore,
         computeBonus,
         computeMoveBonus,
