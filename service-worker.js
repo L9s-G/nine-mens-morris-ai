@@ -1,4 +1,4 @@
-const CACHE_NAME = '9mm-v2.1.1';
+const CACHE_NAME = '9mm-v2.2.0';
 const ASSETS = [
     './',
     './index.html',
@@ -6,6 +6,7 @@ const ASSETS = [
     './engine.js',
     './evaluator.js',
     './searcher.js',
+    './searcher.worker.js',
     './ai.js',
     './narrator.js',
     './game.js',
