@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Nine Men's Morris</title>
+    <meta name="theme-color" content="#1a1a2e">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icon-192.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icon-192.svg">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -72,13 +76,9 @@
                 <span id="phase-display"></span>
                 <span id="message-display"></span>
             </div>
-            <div id="settings-row">
-                <button id="btn-difficulty" class="setting-btn"></button>
-                <button id="btn-first-player" class="setting-btn"></button>
-                <button id="btn-theme" class="setting-btn"></button>
-            </div>
             <div id="controls">
                 <button id="btn-new-game">新游戏</button>
+                <button id="btn-settings" class="setting-btn" title="设置">&#9881;</button>
             </div>
         </aside>
 
@@ -86,6 +86,35 @@
         <aside id="bubble-area">
             <div id="bubble-list"></div>
         </aside>
+
+        <!-- 设置弹窗 -->
+        <div id="settings-modal" class="modal hidden">
+            <div class="modal-content settings-modal-content">
+                <h2>设置</h2>
+                <div class="settings-list">
+                    <div class="setting-row">
+                        <span class="setting-label">难度</span>
+                        <button id="btn-difficulty" class="setting-btn"></button>
+                    </div>
+                    <div class="setting-row">
+                        <span class="setting-label">先手</span>
+                        <button id="btn-first-player" class="setting-btn"></button>
+                    </div>
+                    <div class="setting-row">
+                        <span class="setting-label">主题</span>
+                        <button id="btn-theme" class="setting-btn"></button>
+                    </div>
+                    <div class="setting-row">
+                        <span class="setting-label">弹幕</span>
+                        <button id="btn-danmaku" class="setting-btn"></button>
+                    </div>
+                </div>
+                <div class="modal-buttons">
+                    <button id="btn-settings-cancel">取消</button>
+                    <button id="btn-settings-confirm">确定</button>
+                </div>
+            </div>
+        </div>
 
         <!-- 游戏结果弹窗 -->
         <div id="game-result-modal" class="modal hidden">
@@ -106,5 +135,10 @@
     <script src="ai.js"></script>
     <script src="narrator.js"></script>
     <script src="game.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./service-worker.js');
+        }
+    </script>
 </body>
 </html>

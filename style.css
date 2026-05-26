@@ -439,11 +439,6 @@ html, body {
 
 /* 设置 & 控制按钮 */
 
-#settings-row {
-    display: flex;
-    gap: 8px;
-}
-
 .setting-btn {
     flex: 1;
     padding: 6px 8px;
@@ -478,6 +473,15 @@ html, body {
 
 #controls button:hover  { background: var(--color-hover); }
 #controls button:active { background: var(--color-active); }
+
+#controls #btn-settings {
+    flex: none;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    font-size: 22px;
+    line-height: 38px;
+}
 
 /* ==================== Danmaku & Bubble ==================== */
 
@@ -614,6 +618,34 @@ html, body {
     to   { opacity: 1; }
 }
 
+.settings-modal-content {
+    text-align: left;
+    min-width: 280px;
+}
+
+.settings-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.setting-label {
+    font-size: 15px;
+    color: var(--color-text);
+}
+
+.setting-row .setting-btn {
+    flex: none;
+    width: 120px;
+}
+
 /* ==================== Responsive ==================== */
 
 @media (orientation: landscape) and (min-width: 769px) {
@@ -633,7 +665,7 @@ html, body {
     }
 
     #board-area {
-        flex: 1;
+        flex: 0 0 auto;
         order: 0;
     }
 
@@ -645,8 +677,8 @@ html, body {
     #bubble-area {
         display: flex;
         flex-direction: column;
-        width: 28%;
-        max-width: 320px;
+        flex: 1;
+        min-width: 0;
         height: 100dvh;
         padding: 16px;
         background: var(--color-surface);
@@ -658,7 +690,6 @@ html, body {
         overflow-y: auto;
         display: flex;
         flex-direction: column;
-        justify-content: flex-end;
         gap: 10px;
         padding-bottom: 8px;
     }

@@ -46,11 +46,11 @@ const Game = (() => {
     }
 
     function initBoard() {
-        svgDots = document.getElementById('board-dots');
-        svgPositions = document.getElementById('board-positions');
-        svgPieces = document.getElementById('board-pieces');
-        svgHighlights = document.getElementById('board-highlights');
-        svgDebug = document.getElementById('board-debug');
+        svgDots = document.getElementById('board-dots');           // 棋盘交点标记（24 个黑点）
+        svgPositions = document.getElementById('board-positions'); // 点击热区（透明圆，捕获用户交互）
+        svgPieces = document.getElementById('board-pieces');       // 棋子层（黑白棋子 + 选中态）
+        svgHighlights = document.getElementById('board-highlights'); // 高亮层（可落点、吃子闪烁）
+        svgDebug = document.getElementById('board-debug');         // 调试层（位置编号、AI 思考信息）
 
         // 创建 24 个交点标记（黑色实心小圆点）
         for (let i = 0; i < BOARD_SIZE; i++) {
@@ -285,11 +285,16 @@ const Game = (() => {
 
         // 如果成行需要吃子，等待玩家操作（engine 已切换到 millMove）
         if (E.getStateView().millMove && E.getStateView().currentPlayer === E.TYPE_OPPONENT) {
-            setMessage('选择对手棋子吃掉');
             playerMoves = E.generateLegalMoves(E.TYPE_OPPONENT);
+            if (playerMoves.length === 0) {
+                showGameResult();
+                return;
+            }
+            setMessage('选择对手棋子吃掉');
             legalTargets = playerMoves.filter(m => m.type === 'remove').map(m => m.remove);
             currentLegalPlayer = E.TYPE_OPPONENT;
             renderBoard();
+            saveGameFen();
             return;
         }
 
@@ -315,44 +320,45 @@ const Game = (() => {
     async function doAITurn() {
         if (E.isGameOver()) return;
 
-        isAIThinking = true;
         setThinking(true);
         playerMoves = [];
 
         // 让 UI 有时间刷新
         await sleep(50);
 
+        // 走前评估：narrator 分析局面，立即发出吐槽
+        const preMove = Narrator.assessPosition();
+        showAILine(preMove.line);
+
         const result = AI.selectBestMove();
 
         if (!result || !result.move) {
-            isAIThinking = false;
             setThinking(false);
+            showAILine('[BUG] AI 无合法走法，请开新游戏。FEN: ' + Engine.toFen());
             return;
         }
 
         await animateAndExecute(result.move);
 
-        // AI 台词
-        const bestScore = result.allScores.length > 0 ? result.allScores[0] : null;
-        const line = Narrator.getLine({
-            score: result.score,
-            tags: bestScore ? bestScore.tags : []
-        }, result.mode);
-
+        // debug 信息
         if (debugMode) {
-            const topN = result.allScores.slice(0, result.stats.topK);
+            const { depth, targetDepth, elapsed, nodeCount, topK, temperature } = result.stats;
+            const topN = result.allScores.slice(0, topK);
             const debugText = topN.map((s) => {
                 const m = s.move;
                 const desc = m.type === 'place' ? `→${m.to}`
                     : m.type === 'remove' ? `×${m.remove}`
                     : m.type === 'fly' ? `${m.from}✈${m.to}`
                     : `${m.from}→${m.to}`;
-                return `[${desc}|${s.score}]`;
+                const eat = m.remove != null && m.type !== 'remove' ? `x${m.remove}` : '';
+                return `[${desc}${eat}|${s.score}]`;
             }).join(' ');
-            showAILine(debugText);
-        } else {
-            showAILine(line);
+            showAILine(`{${debugText} D${depth}/${targetDepth} ${elapsed}ms ${nodeCount}n K${topK} T${temperature}}`);
         }
+
+        // 走后吐槽
+        const postLine = Narrator.reactToMove(result.move, result.score, preMove.tags);
+        showAILine(postLine);
 
         updateStatus();
 
@@ -361,7 +367,6 @@ const Game = (() => {
             await handleAICapture();
         }
 
-        isAIThinking = false;
         setThinking(false);
 
         if (E.isGameOver()) {
@@ -380,6 +385,8 @@ const Game = (() => {
         } else {
             setMessage('');
         }
+
+        saveGameFen();
     }
 
     // ==================== 状态面板 ====================
@@ -511,6 +518,7 @@ const Game = (() => {
     }
 
     function showGameResult() {
+        clearGameFen();
         const state = E.getStateView();
         const winner = E.getWinner();
         const isPlayerWin = winner === E.TYPE_OPPONENT;
@@ -563,6 +571,7 @@ const Game = (() => {
     }
 
     function showAILine(text) {
+        if (!settings.danmaku) return;
         if (isLandscape()) {
             showBubble(text);
         } else {
@@ -608,6 +617,7 @@ const Game = (() => {
     // ==================== 工具 ====================
 
     function setThinking(on) {
+        isAIThinking = on;
         document.getElementById('dots-ai').classList.toggle('thinking', on);
     }
 
@@ -634,7 +644,7 @@ const Game = (() => {
         { key: 'cyber',    label: '赛博' }
     ];
 
-    const DEFAULT_SETTINGS = { difficulty: 'Normal', firstPlayer: 'opponent', theme: 'default' };
+    const DEFAULT_SETTINGS = { difficulty: 'Normal', firstPlayer: 'opponent', theme: 'default', danmaku: true };
     let settings = { ...DEFAULT_SETTINGS };
 
     function loadSettings() {
@@ -666,10 +676,16 @@ const Game = (() => {
         // AI 先手时，黑子行（AI）显示在上面
         document.getElementById('player-status').classList.toggle('ai-first', settings.firstPlayer === 'ai');
 
+        // AI 性能模式
+        AI.setPerformanceMode(settings.difficulty);
+
         // 主题
         themeBtn.dataset.value = settings.theme;
         themeBtn.textContent = THEMES.find(t => t.key === settings.theme).label;
         document.documentElement.dataset.theme = settings.theme === 'default' ? '' : settings.theme;
+
+        // 弹幕
+        document.getElementById('btn-danmaku').textContent = settings.danmaku ? '开' : '关';
     }
 
     function cycleButton(btnId, options, callback) {
@@ -688,36 +704,71 @@ const Game = (() => {
         svgDebug.style.display = debugMode ? 'block' : 'none';
     }
 
-    function newGame(overrides) {
-        if (overrides) {
-            if (overrides.difficulty) settings.difficulty = overrides.difficulty;
-            if (overrides.firstPlayer) settings.firstPlayer = overrides.firstPlayer;
-            if (overrides.theme) settings.theme = overrides.theme;
+    const FEN_KEY = 'nmm-fen';
+
+    function saveGameFen() {
+        if (!E.isGameOver()) {
+            localStorage.setItem(FEN_KEY, E.toFen());
+        }
+    }
+
+    function clearGameFen() {
+        localStorage.removeItem(FEN_KEY);
+    }
+
+    let savedSettings = null;
+
+    function openSettings() {
+        savedSettings = { ...settings };
+        document.getElementById('settings-modal').classList.remove('hidden');
+        updateSettingsConfirmBtn();
+    }
+
+    function closeSettings() {
+        document.getElementById('settings-modal').classList.add('hidden');
+    }
+
+    function cancelSettings() {
+        settings = { ...savedSettings };
+        applySettings();
+        closeSettings();
+    }
+
+    function confirmSettings() {
+        const needsReset = settings.firstPlayer !== savedSettings.firstPlayer;
+        closeSettings();
+        if (needsReset) {
+            newGame();
+        } else {
             saveSettings();
         }
+    }
 
+    function updateSettingsConfirmBtn() {
+        const dirty = settings.firstPlayer !== savedSettings.firstPlayer;
+        const btn = document.getElementById('btn-settings-confirm');
+        btn.textContent = dirty ? '新游戏' : '确定';
+    }
+
+    function resetUI() {
         applySettings();
-
-        const firstPlayer = settings.firstPlayer === 'ai' ? E.TYPE_AI : E.TYPE_OPPONENT;
-        AI.setPerformanceMode(settings.difficulty);
-        E.init({ firstPlayer });
-
         resetSelection();
-        isAIThinking = false;
-
-        // 隐藏结果弹窗
         document.getElementById('game-result-modal').classList.add('hidden');
-
         renderBoard();
         updateStatus();
         setThinking(false);
-
-        // 清空弹幕/气泡
         document.getElementById('danmaku-layer').innerHTML = '';
         const bubbleList = document.getElementById('bubble-list');
         if (bubbleList) bubbleList.innerHTML = '';
+    }
 
-        if (firstPlayer === E.TYPE_AI) {
+    function newGame() {
+        clearGameFen();
+        saveSettings();
+        E.init({ firstPlayer: settings.firstPlayer === 'ai' ? E.TYPE_AI : E.TYPE_OPPONENT });
+        resetUI();
+
+        if (settings.firstPlayer === 'ai') {
             setMessage('AI 先手');
             playerMoves = [];
             doAITurn();
@@ -730,15 +781,23 @@ const Game = (() => {
     function init() {
         initBoard();
         loadSettings();
-        newGame();
 
         document.getElementById('btn-new-game').addEventListener('click', () => newGame());
         document.getElementById('btn-result-new-game').addEventListener('click', () => newGame());
-        cycleButton('btn-difficulty', DIFFICULTIES, (val) => newGame({ difficulty: val }));
-        cycleButton('btn-first-player', FIRST_PLAYERS, (val) => newGame({ firstPlayer: val }));
-        cycleButton('btn-theme', THEMES, (val) => { settings.theme = val; saveSettings(); applySettings(); });
-
-        // 双击棋盘中心切换 Debug 模式
+        document.getElementById('btn-settings').addEventListener('click', openSettings);
+        document.getElementById('btn-settings-confirm').addEventListener('click', confirmSettings);
+        document.getElementById('btn-settings-cancel').addEventListener('click', cancelSettings);
+        document.getElementById('settings-modal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) cancelSettings();
+        });
+        cycleButton('btn-difficulty', DIFFICULTIES, (val) => { settings.difficulty = val; applySettings(); updateSettingsConfirmBtn(); });
+        cycleButton('btn-first-player', FIRST_PLAYERS, (val) => { settings.firstPlayer = val; applySettings(); updateSettingsConfirmBtn(); });
+        cycleButton('btn-theme', THEMES, (val) => { settings.theme = val; applySettings(); updateSettingsConfirmBtn(); });
+        document.getElementById('btn-danmaku').addEventListener('click', () => {
+            settings.danmaku = !settings.danmaku;
+            applySettings();
+            updateSettingsConfirmBtn();
+        });
         document.getElementById('board').addEventListener('dblclick', (e) => {
             const rect = e.target.closest('svg').getBoundingClientRect();
             const cx = rect.left + rect.width / 2;
@@ -746,6 +805,30 @@ const Game = (() => {
             const dist = Math.hypot(e.clientX - cx, e.clientY - cy);
             if (dist < 24) toggleDebug();
         });
+
+        // 尝试从保存的 FEN 恢复棋局
+        const savedFen = localStorage.getItem(FEN_KEY);
+        if (savedFen) {
+            try {
+                E.fromFen(savedFen);
+                resetUI();
+                playerMoves = E.generateLegalMoves(E.TYPE_OPPONENT);
+                if (playerMoves.length === 0) throw new Error('terminal position');
+                if (E.getStateView().millMove) {
+                    setMessage('选择对手棋子吃掉');
+                    legalTargets = playerMoves.filter(m => m.type === 'remove').map(m => m.remove);
+                    currentLegalPlayer = E.TYPE_OPPONENT;
+                    renderBoard();
+                } else {
+                    setMessage('');
+                }
+                return;
+            } catch (e) {
+                localStorage.removeItem(FEN_KEY);
+            }
+        }
+
+        newGame();
     }
 
     return { init };

@@ -13,7 +13,7 @@ const AI = (() => {
     const PerformanceConfig = {
         Eco:    { depth: { PLACEMENT: 1, MOVING: 2, FLYING: 2 }, temperature: 1,   topK: 5, label: '菜鸟' },
         Normal: { depth: { PLACEMENT: 2, MOVING: 3, FLYING: 3 }, temperature: 0.8, topK: 4, label: '老手' },
-        Master: { depth: { PLACEMENT: 3, MOVING: 4, FLYING: 4 }, temperature: { PLACEMENT: 0.25, MOVING: 0.02, FLYING: 0.00 }, topK: 2, label: '大师' },
+        Master: { depth: { PLACEMENT: 3, MOVING: 4, FLYING: 5 }, temperature: { PLACEMENT: 0.25, MOVING: 0.02, FLYING: 0.00 }, topK: 2, label: '大师' },
     };
 
     function resolveTemperature(tempConfig, phase) {
@@ -35,14 +35,20 @@ const AI = (() => {
     // ==================== 温度随机选择 ====================
 
     /**
-     * Top-k 截断 + 指数分布随机选择
+     * Top-k 截断 + 指数分布随机选择（权重乘以分数）
+     * 分差大时高分几乎确定，分差接近时保留随机性
      */
     function pickWithWeightedRandom(sorted, temperature, topK) {
         if (sorted.length === 0) return null;
         if (sorted.length === 1 || temperature === 0) return sorted[0];
 
         const candidates = sorted.slice(0, Math.min(topK, sorted.length));
-        const weights = candidates.map((_, i) => Math.exp(-i / temperature));
+
+        // 将分数平移为正数，然后乘以指数衰减
+        const minScore = Math.min(...candidates.map(c => c.score));
+        const weights = candidates.map((c, i) =>
+            (c.score - minScore + 1) * Math.exp(-i / temperature)
+        );
         const sum = weights.reduce((a, b) => a + b, 0);
 
         let r = Math.random() * sum;
@@ -81,14 +87,14 @@ const AI = (() => {
 
         if (!chosen) {
             const moves = E.generateLegalMoves(player);
-            return { move: moves[0], score: 0, allScores: [], stats: result.stats };
+            return { move: moves[0], score: 0, allScores: [], stats: { ...result.stats, topK: currentConfig.topK, temperature: 0 } };
         }
 
         return {
             move: chosen.move,
             score: chosen.score,
             allScores: result.ranked,
-            stats: { ...result.stats, config: currentConfig.label, topK: currentConfig.topK },
+            stats: { ...result.stats, config: currentConfig.label, topK: currentConfig.topK, temperature: temp },
         };
     }
 

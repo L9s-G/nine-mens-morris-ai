@@ -167,6 +167,5 @@ const Searcher = (() => {
 
     return {
         search,
-        getNodeCount: () => nodeCount,
     };
 })();

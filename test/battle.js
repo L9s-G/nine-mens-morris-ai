@@ -109,7 +109,7 @@ function runBattle() {
     const MAX_MOVES = 1000; // 防止无限循环（测试 250 步判和）
 
     while (!gameOver && moveNum < MAX_MOVES) {
-        const state = Engine.getState();
+        const state = Engine.getStateView();
         const currentPlayer = state.currentPlayer;
         const playerName = currentPlayer === Engine.TYPE_OPPONENT ? `${mode1}(白)` : `${mode2}(黑)`;
 
