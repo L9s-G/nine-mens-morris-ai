@@ -269,6 +269,7 @@ const Game = (() => {
         }
 
         E.makeMove(move);
+        resetSelection();
         renderBoard();
     }
 
