@@ -508,11 +508,11 @@ const Game = (() => {
         const btn = document.getElementById('btn-result-copy');
         try {
             await navigator.clipboard.writeText(text);
-            btn.textContent = '已复制';
+            btn.textContent = 'Done';
         } catch {
             btn.textContent = '复制失败';
         }
-        setTimeout(() => { btn.textContent = '复制记录'; }, 1500);
+        setTimeout(() => { btn.textContent = 'LogCopy'; }, 1500);
     }
 
     function showGameResult() {
@@ -704,6 +704,7 @@ const Game = (() => {
     function toggleDebug() {
         debugMode = !debugMode;
         svgDebug.style.display = debugMode ? 'block' : 'none';
+        AI.setDebugMode(debugMode);
     }
 
     const FEN_KEY = 'nmm-fen';
@@ -749,7 +750,7 @@ const Game = (() => {
     function updateSettingsConfirmBtn() {
         const dirty = settings.firstPlayer !== savedSettings.firstPlayer;
         const btn = document.getElementById('btn-settings-confirm');
-        btn.textContent = dirty ? '新游戏' : '确定';
+        btn.textContent = dirty ? 'New Game' : 'Apply';
     }
 
     function resetUI() {

@@ -1,4 +1,4 @@
-const CACHE_NAME = '9mm-v2.2.0';
+const CACHE_NAME = '9mm-v2.3.1';
 const ASSETS = [
     './',
     './index.html',
@@ -11,8 +11,8 @@ const ASSETS = [
     './narrator.js',
     './game.js',
     './manifest.json',
-    './icon-192.svg',
-    './icon-512.svg',
+    './icon-192.png',
+    './icon-512.png',
 ];
 
 self.addEventListener('install', (e) => {

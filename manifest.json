@@ -1,22 +1,22 @@
 {
     "name": "Nine Men's Morris",
-    "short_name": "九子棋",
-    "description": "经典九子棋 AI 对战",
+    "short_name": "九人毛利舞",
+    "description": "给Andrea的16岁生日礼物",
     "start_url": "./",
     "display": "standalone",
     "background_color": "#1a1a2e",
     "theme_color": "#1a1a2e",
     "icons": [
         {
-            "src": "icon-192.svg",
+            "src": "icon-192.png",
             "sizes": "192x192",
-            "type": "image/svg+xml",
+            "type": "image/png",
             "purpose": "any"
         },
         {
-            "src": "icon-512.svg",
+            "src": "icon-512.png",
             "sizes": "512x512",
-            "type": "image/svg+xml",
+            "type": "image/png",
             "purpose": "any maskable"
         }
     ]

@@ -89,6 +89,13 @@ const AI = (() => {
         if (PerformanceConfig[mode]) currentConfig = PerformanceConfig[mode];
     }
 
+    // ==================== Debug 模式 ====================
+
+    const DEBUG_TIME_LIMIT = 20000; // 20 秒，测试更深搜索
+    let debugMode = false;
+
+    function setDebugMode(on) { debugMode = on; }
+
     // ==================== 温度随机选择 ====================
 
     /**
@@ -127,8 +134,9 @@ const AI = (() => {
         const phase = E.getPhase(player);
         const depth = resolveDepth(currentConfig.depth, phase);
 
-        // 使用 Worker 执行搜索
-        const result = await searchWithWorker(player, depth);
+        // 使用 Worker 执行搜索（debug 模式用更长的时间墙）
+        const timeLimit = debugMode ? DEBUG_TIME_LIMIT : undefined;
+        const result = await searchWithWorker(player, depth, timeLimit);
 
         if (!result) return null;
 
@@ -186,6 +194,7 @@ const AI = (() => {
 
     return {
         setPerformanceMode,
+        setDebugMode,
         selectBestMove,
         selectBestMoveForPlayer,
         evaluatePosition,

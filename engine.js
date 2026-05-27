@@ -229,57 +229,49 @@ const Engine = (() => {
 
     // ==================== MILL-FEN（棋盘快照） ====================
 
-    /** 将当前局面转为字符串（用于调试、存档、置换表） */
+    /** 将当前局面打包为 JSON 字符串 */
     function toFen() {
-        let boardStr = '';
+        let board = 0;
         for (let i = 0; i < BOARD_SIZE; i++) {
-            boardStr += state.board[i] === null ? '0' : state.board[i];
+            if (state.board[i]) board += state.board[i] * pow3[i];
         }
-        const white = `${state.playerOpponent.piecesOnHand}${state.playerOpponent.piecesOnBoard}${state.playerOpponent.piecesLost}`;
-        const black = `${state.playerAI.piecesOnHand}${state.playerAI.piecesOnBoard}${state.playerAI.piecesLost}`;
-        
-        return `${boardStr}/${state.currentPlayer}/${white}/${black}/${state.millMove ? 1 : 0}`;
+        const o = state.playerOpponent;
+        const a = state.playerAI;
+        const meta = o.piecesOnHand * 10000
+                   + o.piecesLost * 1000
+                   + a.piecesOnHand * 100
+                   + a.piecesLost * 10
+                   + state.currentPlayer + (state.millMove ? 2 : 0);
+        return `{"board":${board},"meta":${meta}}`;
     }
 
-    /** 从 FEN 字符串恢复局面（带防御性校验） */
+    /** 从快照恢复局面（输入非法则抛异常，由调用方处理） */
     function fromFen(fen) {
-        if (typeof fen !== 'string') throw new Error("Invalid MILL-FEN: expected string");
+        if (typeof fen !== 'string') throw new Error("Invalid FEN: expected string");
+        const obj = JSON.parse(fen);
+        const boardNum = obj.board, meta = obj.meta;
+        if (typeof boardNum !== 'number' || typeof meta !== 'number') throw new Error("Invalid FEN: missing board/meta");
 
-        const parts = fen.split('/');
-        if (parts.length !== 5) throw new Error("Invalid MILL-FEN: expected 5 parts");
-
-        // 棋盘：24 位，每位 0/1/2
-        const boardChars = parts[0];
-        if (boardChars.length !== BOARD_SIZE) throw new Error("Invalid MILL-FEN: board length must be " + BOARD_SIZE);
         const board = new Array(BOARD_SIZE);
+        let val = boardNum;
         for (let i = 0; i < BOARD_SIZE; i++) {
-            const ch = boardChars[i];
-            if (ch !== '0' && ch !== '1' && ch !== '2') throw new Error("Invalid MILL-FEN: invalid board char at " + i);
-            board[i] = ch === '0' ? null : Number(ch);
+            const v = val % 3;
+            board[i] = v === 0 ? null : v;
+            val = (val - v) / 3;
         }
 
-        // 当前玩家：1 或 2
-        const currentPlayer = Number(parts[1]);
-        if (currentPlayer !== TYPE_OPPONENT && currentPlayer !== TYPE_AI) throw new Error("Invalid MILL-FEN: currentPlayer must be 1 or 2");
-
-        // 棋子数：每位 0-9，总和应为 9（白/黑各 9 子）
-        function parsePlayer(str, label) {
-            if (str.length !== 3) throw new Error("Invalid MILL-FEN: " + label + " must be 3 digits");
-            const vals = [];
-            for (let i = 0; i < 3; i++) {
-                const n = Number(str[i]);
-                if (!Number.isInteger(n) || n < 0 || n > 9) throw new Error("Invalid MILL-FEN: " + label + " digit " + i + " must be 0-9");
-                vals.push(n);
-            }
-            if (vals[0] + vals[1] + vals[2] !== 9) throw new Error("Invalid MILL-FEN: " + label + " pieces must sum to 9");
-            return { piecesOnHand: vals[0], piecesOnBoard: vals[1], piecesLost: vals[2] };
-        }
-
-        const opponent = parsePlayer(parts[2], 'opponent');
-        const ai = parsePlayer(parts[3], 'ai');
-
-        // millMove 标志
-        if (parts[4] !== '0' && parts[4] !== '1') throw new Error("Invalid MILL-FEN: millMove must be 0 or 1");
+        let m = meta;
+        const last = m % 10; m = (m - last) / 10;
+        const aLost = m % 10; m = (m - aLost) / 10;
+        const aHand = m % 10; m = (m - aHand) / 10;
+        const oLost = m % 10; m = (m - oLost) / 10;
+        const oHand = m;
+        if (oHand + oLost > 9 || aHand + aLost > 9) throw new Error("Invalid FEN: piece count overflow");
+        const opponent = { piecesOnHand: oHand, piecesOnBoard: 9 - oHand - oLost, piecesLost: oLost };
+        const ai = { piecesOnHand: aHand, piecesOnBoard: 9 - aHand - aLost, piecesLost: aLost };
+        const currentPlayer = last <= 2 ? last : last - 2;
+        if (currentPlayer !== TYPE_OPPONENT && currentPlayer !== TYPE_AI) throw new Error("Invalid FEN: bad player");
+        const millMove = last > 2;
 
         const hash = computeHash(board, currentPlayer);
         state = {
@@ -287,7 +279,7 @@ const Engine = (() => {
             currentPlayer,
             playerOpponent: opponent,
             playerAI: ai,
-            millMove: parts[4] === '1',
+            millMove,
             moveHistory: [],
             gameOver: false,
             winner: null,

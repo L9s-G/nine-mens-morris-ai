@@ -122,6 +122,12 @@ const Evaluator = (() => {
             if (hard) hardRollingForks++;
         }
 
+        // placement/flying 阶段：对手每步只能落/飞一子，N-1 个无法同时 block
+        if (oppPhase !== E.PHASE_MOVING) {
+            hardNearMills = Math.max(0, nearMills - 1);
+            hardRollingForks = Math.max(0, rollingForks - 1);
+        }
+
         return { nearMills, hardNearMills, rollingForks, hardRollingForks };
     }
 
