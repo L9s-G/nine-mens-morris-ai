@@ -91,7 +91,7 @@
     --color-thinking: #ff7597;
 
     /* 圆点色 */
-    --color-dot-white-hand: #ffffff;
+    --color-dot-white-hand: #d5d5d5;
     --color-dot-black: #5dade2;
     --color-dot-black-board: #3498db;
     --color-dot-lost: #bdc3c7;
@@ -672,7 +672,7 @@ html, body {
 
 /* ==================== Responsive ==================== */
 
-@media (orientation: landscape) and (min-width: 769px) {
+@media (orientation: landscape) and (min-height: 360px) {
     #app {
         flex-direction: row;
     }
