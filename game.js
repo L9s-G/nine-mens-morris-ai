@@ -634,7 +634,7 @@ const Game = (() => {
     const DIFFICULTIES = [
         { key: 'Eco',    label: '菜鸟' },
         { key: 'Normal', label: '老手' },
-        { key: 'Master', label: '大师' }
+        { key: 'Master', label: '大师' },
     ];
 
     const FIRST_PLAYERS = [
@@ -707,6 +707,18 @@ const Game = (() => {
         debugMode = !debugMode;
         svgDebug.style.display = debugMode ? 'block' : 'none';
         AI.setDebugMode(debugMode);
+
+        // Debug 开启时加入恶魔选项，关闭时移除并回退
+        const hasDemon = DIFFICULTIES.some(d => d.key === 'Demon');
+        if (debugMode && !hasDemon) {
+            DIFFICULTIES.push({ key: 'Demon', label: '恶魔' });
+        } else if (!debugMode && hasDemon) {
+            DIFFICULTIES.splice(DIFFICULTIES.findIndex(d => d.key === 'Demon'), 1);
+            if (settings.difficulty === 'Demon') {
+                settings.difficulty = 'Master';
+                applySettings();
+            }
+        }
     }
 
     const FEN_KEY = 'nmm-fen';
