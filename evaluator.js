@@ -198,21 +198,21 @@ const Evaluator = (() => {
 
     // ==================== 评估权重 ====================
 
-    const SCORE_WIN  = 10000;
+    const SCORE_WIN = 10000;
     const SCORE_LOSE = -10000;
 
     const WEIGHTS = {
         // ── 吃子价值（非线性，取决于对手剩余子数）──
-        capture_ge4:    100,    // 对手剩余 >=4 子，吃子有价值
-        capture_fly:    200,    // 飞行转折期吃子策略
+        capture_ge4: 100,    // 对手剩余 >=4 子，对手机动性越小AI奖励越高，吃子有价值
+        capture_fly: 200,    // 飞行转折期吃子策略
         // 对手剩余 2 子：SCORE_WIN 覆盖
 
         // ── Mill 威胁（吃子胜利条件）──
-        nearMill:        10,    // 2+1 可达
-        hardNearMill:    20,    // 2+1 对手不可达
-        rollingFork:     40,    // 滚动叉子
+        nearMill: 10,    // 2+1 可达
+        hardNearMill: 20,    // 2+1 对手不可达
+        rollingFork: 40,    // 滚动叉子
         hardRollingFork: 80,    // 滚动叉子、对手不可达
-        mobility:       150,    // 机动性：半衰递减 0.5^(mob-1)
+        mobility: 150,    // 机动性：半衰递减 0.5^(mob-1)
     };
 
     // ==================== 局面评估 ====================
@@ -257,11 +257,10 @@ const Evaluator = (() => {
         const aiMills = analyzeMills(E.TYPE_AI);
         const oppMills = analyzeMills(E.TYPE_OPPONENT);
 
-        const dir = x => Math.sign(x);
-        score += WEIGHTS.nearMill * w * dir(aiMills.nearMills - oppMills.nearMills);
-        score += WEIGHTS.hardNearMill * w * dir(aiMills.hardNearMills - oppMills.hardNearMills);
-        score += WEIGHTS.rollingFork * w * dir(aiMills.rollingForks - oppMills.rollingForks);
-        score += WEIGHTS.hardRollingFork * w * dir(aiMills.hardRollingForks - oppMills.hardRollingForks);
+        score += WEIGHTS.nearMill * w * ((aiMills.nearMills > oppMills.nearMills) - (aiMills.nearMills < oppMills.nearMills));
+        score += WEIGHTS.hardNearMill * w * ((aiMills.hardNearMills > oppMills.hardNearMills) - (aiMills.hardNearMills < oppMills.hardNearMills));
+        score += WEIGHTS.rollingFork * w * ((aiMills.rollingForks > oppMills.rollingForks) - (aiMills.rollingForks < oppMills.rollingForks));
+        score += WEIGHTS.hardRollingFork * w * ((aiMills.hardRollingForks > oppMills.hardRollingForks) - (aiMills.hardRollingForks < oppMills.hardRollingForks));
 
         // ── 飞行转折期吃子策略 ──
         const oppTotal = state.playerOpponent.piecesOnBoard + state.playerOpponent.piecesOnHand;

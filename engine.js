@@ -11,7 +11,7 @@
 const Engine = (() => {
     // ==================== 常量定义 ====================
     const TYPE_OPPONENT = 1;   // 白棋
-    const TYPE_AI    = 2;   // 黑棋
+    const TYPE_AI = 2;   // 黑棋
     const BOARD_SIZE = 24;
 
     // 每个点的邻居关系（移动时使用）
@@ -44,8 +44,8 @@ const Engine = (() => {
 
     // 所有可能的 Mill（共 16 条）
     const MILLS = [
-        [0,1,2], [3,4,5], [6,7,8], [9,10,11], [12,13,14], [15,16,17], [18,19,20], [21,22,23], // 横线
-        [0,9,21], [3,10,18], [6,11,15], [8,12,17], [5,13,20], [2,14,23], [1,4,7], [16,19,22]  // 竖线
+        [0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11], [12, 13, 14], [15, 16, 17], [18, 19, 20], [21, 22, 23], // 横线
+        [0, 9, 21], [3, 10, 18], [6, 11, 15], [8, 12, 17], [5, 13, 20], [2, 14, 23], [1, 4, 7], [16, 19, 22]  // 竖线
     ];
 
     // 每个位置所属的 Mill 索引（每个位置恰好属于 1 横 1 竖两条线）
@@ -57,7 +57,9 @@ const Engine = (() => {
     }
 
     // ==================== 位置哈希（三次重复检测） ====================
-    const POS_WINDOW = 36;   // 滑动窗口大小
+    const POS_WINDOW = 32;   // 滑动窗口大小（环形缓冲区，2 的幂 → 取模用位与）
+    const POS_MASK = POS_WINDOW - 1;  // 预计算掩码
+    const EMPTY_SLOT = 0xFFFFFFFF;    // 空槽哨兵（hash 不可能达到的值）
 
     // 预计算 3^i（i=0..23），用于增量哈希
     const pow3 = new Array(BOARD_SIZE);
@@ -73,32 +75,28 @@ const Engine = (() => {
         return h;
     }
 
-    /** 推入位置哈希到滑动窗口 */
+    /** 推入位置哈希到环形缓冲区 */
     function pushHash(hash) {
-        const w = state.posWindow;
-        const c = state.posCount;
-        if (w.length >= POS_WINDOW) {
-            const old = w.shift();
-            const cnt = c.get(old) - 1;
-            if (cnt === 0) c.delete(old); else c.set(old, cnt);
-        }
-        w.push(hash);
-        c.set(hash, (c.get(hash) || 0) + 1);
+        state.posBuf[state.writeIdx & POS_MASK] = hash;
+        state.writeIdx++;
     }
 
     /** 弹出最后入窗口的位置哈希 */
     function popHash() {
-        const hash = state.posWindow.pop();
-        const c = state.posCount;
-        const cnt = c.get(hash) - 1;
-        if (cnt === 0) c.delete(hash); else c.set(hash, cnt);
+        state.writeIdx--;
+        state.posBuf[state.writeIdx & POS_MASK] = EMPTY_SLOT;
     }
 
     /** 检查三次重复：当前玩家造成重复 → 该玩家判负 */
-    function checkRepetition() {
-        if ((state.posCount.get(state.posHash) || 0) >= 3) {
-            state.gameOver = true;
-            state.winner = null;  // null = 平局（评分系统视为当前玩家输）
+    function checkRepetition(hash) {
+        const buf = state.posBuf;
+        let count = 0;
+        for (let i = 0; i < POS_WINDOW; i++) {
+            if (buf[i] === hash && ++count >= 3) {
+                state.gameOver = true;
+                state.winner = null;
+                return;
+            }
         }
     }
 
@@ -114,10 +112,10 @@ const Engine = (() => {
 
         return {
             board: new Array(BOARD_SIZE).fill(null),   // null | TYPE_OPPONENT | TYPE_AI
-            
+
             currentPlayer: firstPlayer,                // 当前玩家
             millMove: false,                           // 是否处于吃子阶段（刚形成 Mill）
-            
+
             playerOpponent: {
                 piecesOnHand: opponentHand,
                 piecesOnBoard: 0,
@@ -128,23 +126,23 @@ const Engine = (() => {
                 piecesOnBoard: 0,
                 piecesLost: 0
             },
-            
+
             moveHistory: [],      // 走棋历史
             gameOver: false,
             winner: null,
 
             // ── 位置哈希（三次重复检测）──
             posHash: 0,
-            posWindow: [],       // 滑动窗口（最近 POS_WINDOW 个哈希）
-            posCount: new Map(), // 哈希 → 窗口内出现次数
+            posBuf: new Uint32Array(POS_WINDOW).fill(EMPTY_SLOT),  // 环形缓冲区（连续内存）
+            writeIdx: 0,                     // 写指针（绝对位置，取模定位）
         };
     }
 
     // ==================== 工具函数 ====================
 
     const PHASE_PLACEMENT = 'PLACEMENT';
-    const PHASE_MOVING    = 'MOVING';
-    const PHASE_FLYING    = 'FLYING';
+    const PHASE_MOVING = 'MOVING';
+    const PHASE_FLYING = 'FLYING';
 
     /** 获取玩家当前所处阶段 */
     function getPhase(player) {
@@ -198,8 +196,7 @@ const Engine = (() => {
     function init(config = {}) {
         state = createInitialState(config);
         state.posHash = computeHash(state.board, state.currentPlayer);
-        state.posWindow.push(state.posHash);
-        state.posCount.set(state.posHash, 1);
+        pushHash(state.posHash);
     }
 
     /** 获取当前状态的深拷贝 */
@@ -237,38 +234,46 @@ const Engine = (() => {
         }
         const o = state.playerOpponent;
         const a = state.playerAI;
-        const meta = o.piecesOnHand * 10000
-                   + o.piecesLost * 1000
-                   + a.piecesOnHand * 100
-                   + a.piecesLost * 10
-                   + state.currentPlayer + (state.millMove ? 2 : 0);
-        return `{"board":${board},"meta":${meta}}`;
+        const meta = (o.piecesOnHand << 16)
+            | (o.piecesLost << 12)
+            | (a.piecesOnHand << 8)
+            | (a.piecesLost << 4)
+            | state.currentPlayer | (state.millMove ? 2 : 0);
+        return `{"board":${board},"meta":"0x${meta.toString(16)}"}`;
     }
 
     /** 从快照恢复局面（输入非法则抛异常，由调用方处理） */
     function fromFen(fen) {
         if (typeof fen !== 'string') throw new Error("Invalid FEN: expected string");
         const obj = JSON.parse(fen);
-        const boardNum = obj.board, meta = obj.meta;
-        if (typeof boardNum !== 'number' || typeof meta !== 'number') throw new Error("Invalid FEN: missing board/meta");
+        const boardNum = obj.board;
+        const metaStr = obj.meta;
+        if (typeof boardNum !== 'number' || typeof metaStr !== 'string') throw new Error("Invalid FEN: missing board/meta");
+        if (boardNum < 0) throw new Error("Invalid FEN: negative board");
+        const m = parseInt(metaStr, 16);
+        if (Number.isNaN(m) || m < 0) throw new Error("Invalid FEN: bad meta");
 
         const board = new Array(BOARD_SIZE);
         let val = boardNum;
+        let onBoardOpp = 0, onBoardAI = 0;
         for (let i = 0; i < BOARD_SIZE; i++) {
             const v = val % 3;
+            if (v === TYPE_OPPONENT) onBoardOpp++;
+            else if (v === TYPE_AI) onBoardAI++;
             board[i] = v === 0 ? null : v;
             val = (val - v) / 3;
         }
 
-        let m = meta;
-        const last = m % 10; m = (m - last) / 10;
-        const aLost = m % 10; m = (m - aLost) / 10;
-        const aHand = m % 10; m = (m - aHand) / 10;
-        const oLost = m % 10; m = (m - oLost) / 10;
-        const oHand = m;
-        if (oHand + oLost > 9 || aHand + aLost > 9) throw new Error("Invalid FEN: piece count overflow");
-        const opponent = { piecesOnHand: oHand, piecesOnBoard: 9 - oHand - oLost, piecesLost: oLost };
-        const ai = { piecesOnHand: aHand, piecesOnBoard: 9 - aHand - aLost, piecesLost: aLost };
+        const last = m & 0xf;
+        if (last > 4) throw new Error("Invalid FEN: bad last");
+        const aLost = (m >> 4) & 0xf;
+        const aHand = (m >> 8) & 0xf;
+        const oLost = (m >> 12) & 0xf;
+        const oHand = (m >> 16) & 0xf;
+        if (oHand + onBoardOpp + oLost !== 9) throw new Error("Invalid FEN: opponent piece mismatch");
+        if (aHand + onBoardAI + aLost !== 9) throw new Error("Invalid FEN: ai piece mismatch");
+        const opponent = { piecesOnHand: oHand, piecesOnBoard: onBoardOpp, piecesLost: oLost };
+        const ai = { piecesOnHand: aHand, piecesOnBoard: onBoardAI, piecesLost: aLost };
         const currentPlayer = last <= 2 ? last : last - 2;
         if (currentPlayer !== TYPE_OPPONENT && currentPlayer !== TYPE_AI) throw new Error("Invalid FEN: bad player");
         const millMove = last > 2;
@@ -284,9 +289,10 @@ const Engine = (() => {
             gameOver: false,
             winner: null,
             posHash: hash,
-            posWindow: [hash],
-            posCount: new Map([[hash, 1]])
+            posBuf: new Uint32Array(POS_WINDOW).fill(EMPTY_SLOT),
+            writeIdx: 0
         };
+        pushHash(hash);
         return getState();
     }
 
@@ -463,10 +469,9 @@ const Engine = (() => {
             state.currentPlayer = opp;
             state.moveHistory.push(historyEntry);
 
-            // 推入位置窗口 + 检查三次重复
+            // 推入位置窗口（吃子后棋盘不可能重复，无需检查）
             state.posHash = computeHash(state.board, state.currentPlayer);
             pushHash(state.posHash);
-            checkRepetition();
 
             if (!state.gameOver) checkGameOver();
             return false;
@@ -500,7 +505,7 @@ const Engine = (() => {
         if (!state.millMove) {
             state.posHash = computeHash(state.board, state.currentPlayer);
             pushHash(state.posHash);
-            checkRepetition();
+            checkRepetition(state.posHash);
 
             if (!state.gameOver) checkGameOver();
         }
@@ -627,7 +632,7 @@ const Engine = (() => {
         fromFen,            // (fen) → 恢复局面（预留：游戏恢复/残局功能）
 
         // ── 走法核心 ──
-        generateLegalMoves, // (player) → Move[]（含成磨展开吃子）
+        generateLegalMoves, // (player) → Move[]（含：成磨展开吃子）
         makeMove,           // (move) → boolean: true=成磨，调用者需触发吃子而非切换回合
         undoMove,           // () 撤销最后一步（成磨+吃子需调两次）
         isInMill,           // (board, pos) → boolean（pos 棋子是否在完成的磨坊中）
