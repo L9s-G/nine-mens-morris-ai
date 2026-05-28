@@ -14,9 +14,8 @@ const engineCode = fs.readFileSync(path.join(srcDir, 'engine.js'), 'utf-8').repl
 const evaluatorCode = fs.readFileSync(path.join(srcDir, 'evaluator.js'), 'utf-8').replace('const Evaluator = (() => {', 'Evaluator = (() => {');
 const searcherCode = fs.readFileSync(path.join(srcDir, 'searcher.js'), 'utf-8').replace('const Searcher = (() => {', 'Searcher = (() => {');
 const aiCode = fs.readFileSync(path.join(srcDir, 'ai.js'), 'utf-8').replace('const AI = (() => {', 'AI = (() => {');
-const narratorCode = fs.readFileSync(path.join(srcDir, 'narrator.js'), 'utf-8').replace('const Narrator = (() => {', 'Narrator = (() => {');
 
-const sandbox = { console, Engine: null, Evaluator: null, Searcher: null, AI: null, Narrator: null, Math };
+const sandbox = { console, Engine: null, Evaluator: null, Searcher: null, AI: null, Math };
 vm.createContext(sandbox);
 
 // Worker 模拟：同步调用 Searcher.search，无需真实线程
@@ -48,13 +47,11 @@ vm.runInContext(engineCode, sandbox);
 vm.runInContext(evaluatorCode, sandbox);
 vm.runInContext(searcherCode, sandbox);
 vm.runInContext(aiCode, sandbox);
-vm.runInContext(narratorCode, sandbox);
 
 const Engine = sandbox.Engine;
 const Evaluator = sandbox.Evaluator;
 const Searcher = sandbox.Searcher;
 const AI = sandbox.AI;
-const Narrator = sandbox.Narrator;
 
 // ==================== 命令行参数 ====================
 
@@ -62,7 +59,9 @@ const args = process.argv.slice(2);
 const mode1 = args[0] || 'Normal';
 const mode2 = args[1] || 'Master';
 const round = args[2] || '1';
-const outputFile = args[3] || `battle_${mode1}_vs_${mode2}_r${round}.log`;
+const logDir = path.resolve(__dirname, 'battle_logs');
+if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+const outputFile = args[3] || path.join(logDir, `battle_${mode1}_vs_${mode2}_r${round}.log`);
 
 // ==================== 日志系统 ====================
 
@@ -83,7 +82,7 @@ function log(msg) {
 }
 
 function getBoardLines(board) {
-    const symbols = { null: 'o', 1: 'W', 2: 'B' };
+    const symbols = { null: '·', 1: '●', 2: '○' };
     const b = board.map(v => symbols[v] || '?');
 
     return [
@@ -166,11 +165,22 @@ async function runBattle() {
         const pOpp = state.playerOpponent;
         const pAI = state.playerAI;
 
+        // 吞吐量
+        const throughput = thinkTime > 0 ? Math.round(result.stats.nodeCount / thinkTime) : 0;
+
+        // 机动性与磨坊（走前状态，用于核对评估算法）
+        const oppMob = Evaluator.countMobility(Engine.TYPE_OPPONENT);
+        const aiMob = Evaluator.countMobility(Engine.TYPE_AI);
+        const oppMills = Evaluator.analyzeMills(Engine.TYPE_OPPONENT);
+        const aiMills = Evaluator.analyzeMills(Engine.TYPE_AI);
+
         const infoLines = [
-            `初始：白-${pOpp.piecesOnHand}-${pOpp.piecesOnBoard}-${pOpp.piecesLost} 黑-${pAI.piecesOnHand}-${pAI.piecesOnBoard}-${pAI.piecesLost}`,
+            `棋子: 白${pOpp.piecesOnHand}+${pOpp.piecesOnBoard}-${pOpp.piecesLost} | 黑${pAI.piecesOnHand}+${pAI.piecesOnBoard}-${pAI.piecesLost}`,
             `走法: ${formatMove(result.move)}`,
-            `评分: ${result.score}`,
-            `用时: ${thinkTime}ms | 节点: ${result.stats.nodeCount} | 深度: ${result.stats.depth}`
+            `评分: ${result.score} | 深度: ${result.stats.depth}/${result.stats.targetDepth}`,
+            `用时: ${thinkTime}ms | 节点: ${result.stats.nodeCount} | 吞吐: ${throughput}n/ms`,
+            `机动: 白${oppMob} 黑${aiMob}`,
+            `磨坊: 白 ${oppMills.nearMills}/${oppMills.hardNearMills} : ${oppMills.rollingForks}/${oppMills.hardRollingForks} | 黑 ${aiMills.nearMills}/${aiMills.hardNearMills} : ${aiMills.rollingForks}/${aiMills.hardRollingForks} [nm/hnm : rf/hrf]`,
         ];
 
         log(`--- 第 ${moveNum} 手 | ${playerName} ---`);

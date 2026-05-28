@@ -71,6 +71,7 @@ const AI = (() => {
         Eco:    { depth: { PLACEMENT: 1, MOVING: 2, FLYING: 2 }, temperature: 1,   topK: 5, label: '菜鸟' },
         Normal: { depth: { PLACEMENT: 2, MOVING: 3, FLYING: 3 }, temperature: 0.8, topK: 4, label: '老手' },
         Master: { depth: { PLACEMENT: 3, MOVING: 4, FLYING: 5 }, temperature: { PLACEMENT: 0.25, MOVING: 0.02, FLYING: 0.00 }, topK: 2, label: '大师' },
+        Demon:  { depth: { PLACEMENT: 5, MOVING: 8, FLYING: 8 }, temperature: { PLACEMENT: 0.01, MOVING: 0.00, FLYING: 0.00 }, topK: 1, label: '恶魔' },
     };
 
     function resolveTemperature(tempConfig, phase) {
