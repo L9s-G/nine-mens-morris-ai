@@ -57,22 +57,23 @@ const Engine = (() => {
     }
 
     // ==================== 位置哈希（三次重复检测） ====================
-    const POS_WINDOW = 32;   // 滑动窗口大小（环形缓冲区，2 的幂 → 取模用位与）
-    const POS_MASK = POS_WINDOW - 1;  // 预计算掩码
-    const EMPTY_SLOT = 0xFFFFFFFF;    // 空槽哨兵（hash 不可能达到的值）
+    // 游戏规则：30 步内同一局面出现 3 次判和
+    // 环形缓冲区 32 槽（2 的幂 → 取模用位与），滑动窗口覆盖 30 步规则
+    const POS_WINDOW = 32;
+    const POS_MASK = POS_WINDOW - 1;
 
     // 预计算 3^i（i=0..23），用于增量哈希
     const pow3 = new Array(BOARD_SIZE);
     pow3[0] = 1;
     for (let i = 1; i < BOARD_SIZE; i++) pow3[i] = pow3[i - 1] * 3;
 
-    /** 从 board + currentPlayer 计算初始哈希 */
+    /** 从 board + currentPlayer 计算初始哈希（截断为 32 位，与 Uint32Array 一致） */
     function computeHash(board, currentPlayer) {
         let h = currentPlayer;
         for (let i = 0; i < BOARD_SIZE; i++) {
             if (board[i]) h += board[i] * pow3[i];
         }
-        return h;
+        return h >>> 0;
     }
 
     /** 推入位置哈希到环形缓冲区 */
@@ -84,10 +85,10 @@ const Engine = (() => {
     /** 弹出最后入窗口的位置哈希 */
     function popHash() {
         state.writeIdx--;
-        state.posBuf[state.writeIdx & POS_MASK] = EMPTY_SLOT;
+        state.posBuf[state.writeIdx & POS_MASK] = 0;
     }
 
-    /** 检查三次重复：当前玩家造成重复 → 该玩家判负 */
+    /** 检查三次重复：遍历窗口，当前哈希出现 ≥3 次 → 判和 */
     function checkRepetition(hash) {
         const buf = state.posBuf;
         let count = 0;
@@ -133,7 +134,7 @@ const Engine = (() => {
 
             // ── 位置哈希（三次重复检测）──
             posHash: 0,
-            posBuf: new Uint32Array(POS_WINDOW).fill(EMPTY_SLOT),  // 环形缓冲区（连续内存）
+            posBuf: new Uint32Array(POS_WINDOW),  // 环形缓冲区（连续内存）
             writeIdx: 0,                     // 写指针（绝对位置，取模定位）
         };
     }
@@ -239,7 +240,7 @@ const Engine = (() => {
             | (a.piecesOnHand << 8)
             | (a.piecesLost << 4)
             | state.currentPlayer | (state.millMove ? 2 : 0);
-        return `{"board":${board},"meta":"0x${meta.toString(16)}"}`;
+        return `{"board":${board},"meta":"0x${meta.toString(16).padStart(5, '0')}"}`;
     }
 
     /** 从快照恢复局面（输入非法则抛异常，由调用方处理） */
@@ -289,7 +290,7 @@ const Engine = (() => {
             gameOver: false,
             winner: null,
             posHash: hash,
-            posBuf: new Uint32Array(POS_WINDOW).fill(EMPTY_SLOT),
+            posBuf: new Uint32Array(POS_WINDOW),
             writeIdx: 0
         };
         pushHash(hash);
@@ -459,56 +460,51 @@ const Engine = (() => {
         // ── 吃子走法 ──
         if (type === 'remove') {
             if (remove !== null) {
-                state.posHash -= opp * pow3[remove];   // 增量更新哈希
                 state.board[remove] = null;
+                state.posHash -= opp * pow3[remove]; state.posHash >>>= 0;
                 oppP.piecesOnBoard--;
                 oppP.piecesLost++;
             }
 
-            state.millMove = false;
             state.currentPlayer = opp;
+            state.posHash += opp - player; state.posHash >>>= 0;
+            state.millMove = false;
             state.moveHistory.push(historyEntry);
 
-            // 推入位置窗口（吃子后棋盘不可能重复，无需检查）
-            state.posHash = computeHash(state.board, state.currentPlayer);
             pushHash(state.posHash);
-
             if (!state.gameOver) checkGameOver();
             return false;
         }
 
         // ── 普通走法（place / move / fly）──
-        if (type === 'place') {
-            state.board[to] = player;
-            p.piecesOnHand--;
-            p.piecesOnBoard++;
-            state.posHash += player * pow3[to];        // 增量更新哈希
-        } else {
-            state.board[from] = null;
-            state.board[to] = player;
-            state.posHash += player * (pow3[to] - pow3[from]);  // 增量更新哈希
-        }
-
-        // 检查是否形成 Mill
-        const formedMill = isInMill(state.board, to);
+        const formedMill = (() => {
+            if (type === 'place') {
+                state.board[to] = player;
+                state.posHash += player * pow3[to]; state.posHash >>>= 0;
+                p.piecesOnHand--;
+                p.piecesOnBoard++;
+            } else {
+                state.board[from] = null;
+                state.board[to] = player;
+                state.posHash += player * (pow3[to] - pow3[from]); state.posHash >>>= 0;
+            }
+            return isInMill(state.board, to);
+        })();
 
         if (formedMill) {
             state.millMove = true;
         } else {
             state.currentPlayer = opp;
+            state.posHash += opp - player; state.posHash >>>= 0;
         }
 
         historyEntry.formedMill = formedMill;
         state.moveHistory.push(historyEntry);
 
-        // 推入位置窗口 + 检查终局（非吃子阶段）
-        if (!state.millMove) {
-            state.posHash = computeHash(state.board, state.currentPlayer);
-            pushHash(state.posHash);
-            checkRepetition(state.posHash);
-
-            if (!state.gameOver) checkGameOver();
-        }
+        // 推入位置窗口 + 检查重复 + 检查终局
+        pushHash(state.posHash);
+        checkRepetition(state.posHash);
+        if (!state.millMove && !state.gameOver) checkGameOver();
 
         return formedMill;
     }
@@ -559,39 +555,38 @@ const Engine = (() => {
 
         // ── 吃子走法的撤销 ──
         if (type === 'remove') {
-            popHash();  // remove 总是推入了窗口
+            popHash();
 
             if (remove !== null) {
                 state.board[remove] = removedFrom || opp;
+                state.posHash += opp * pow3[remove]; state.posHash >>>= 0;
                 oppP.piecesOnBoard++;
                 oppP.piecesLost--;
             }
 
-            // 恢复哈希到吃子前（磨坊状态，同一玩家）
-            state.posHash = computeHash(state.board, player);
-
-            state.millMove = true;
             state.currentPlayer = player;
+            state.posHash += player - opp; state.posHash >>>= 0;
+            state.millMove = true;
         } else {
             // ── 普通走法的撤销（place / move / fly）──
-            if (!formedMill) popHash();  // 成磨时 makeMove 未推入窗口
-
-            // 还原棋盘
-            state.board[to] = null;
-            if (from !== -1) {
-                state.board[from] = player;
-            }
+            popHash();
 
             if (type === 'place') {
+                state.board[to] = null;
+                state.posHash -= player * pow3[to]; state.posHash >>>= 0;
                 p.piecesOnHand++;
                 p.piecesOnBoard--;
+            } else {
+                state.board[from] = player;
+                state.board[to] = null;
+                state.posHash -= player * (pow3[to] - pow3[from]); state.posHash >>>= 0;
             }
 
-            // 恢复哈希到走法前
-            state.posHash = computeHash(state.board, player);
-
+            if (!formedMill) {
+                state.currentPlayer = player;
+                state.posHash += player - opp; state.posHash >>>= 0;
+            }
             state.millMove = false;
-            state.currentPlayer = player;
         }
 
         // 重置游戏结束状态（AI 搜索不会越过终局）

@@ -351,7 +351,9 @@ const Game = (() => {
                 const eat = m.remove != null && m.type !== 'remove' ? `x${m.remove}` : '';
                 return `[${desc}${eat}|${s.score}]`;
             }).join(' ');
-            showAILineRaw(`${debugText} < D${depth}/${targetDepth} ${elapsed}ms ${nodeCount}n K${topK} T${temperature}`);
+            const timeStr = elapsed >= 1000 ? `${Math.round(elapsed / 1000)}s` : `${Math.round(elapsed)}ms`;
+            const nodesStr = nodeCount >= 1000 ? `${Math.round(nodeCount / 1000)}k` : `${Math.round(nodeCount)}n`;
+            showAILineRaw(`${debugText} < {D${depth}/${targetDepth} ${timeStr} ${nodesStr} T${temperature.toString().slice(0, 4)}}`);
         }
 
         // 走后吐槽

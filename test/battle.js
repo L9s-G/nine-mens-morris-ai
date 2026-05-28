@@ -18,6 +18,32 @@ const narratorCode = fs.readFileSync(path.join(srcDir, 'narrator.js'), 'utf-8').
 
 const sandbox = { console, Engine: null, Evaluator: null, Searcher: null, AI: null, Narrator: null, Math };
 vm.createContext(sandbox);
+
+// Worker 模拟：同步调用 Searcher.search，无需真实线程
+// 注意：Node.js 环境共享 Engine 实例，fromFen 会重建 state
+// 搜索前保存写指针/缓冲区，搜索后恢复，避免污染游戏状态
+sandbox.Worker = class {
+    constructor() { this.onmessage = null; this.onerror = null; }
+    postMessage(data) {
+        try {
+            const st = sandbox.Engine.getStateView();
+            const savedWIdx = st.writeIdx;
+            const savedBuf = new Uint32Array(st.posBuf);
+            const savedHash = st.posHash;
+            sandbox.Engine.fromFen(data.fen);
+            const result = sandbox.Searcher.search(data.player, data.depth, data.timeLimit);
+            const st2 = sandbox.Engine.getStateView();
+            st2.writeIdx = savedWIdx;
+            st2.posBuf.set(savedBuf);
+            st2.posHash = savedHash;
+            if (this.onmessage) this.onmessage({ data: { success: true, result } });
+        } catch (error) {
+            if (this.onmessage) this.onmessage({ data: { success: false, error: error.message } });
+        }
+    }
+    terminate() {}
+};
+
 vm.runInContext(engineCode, sandbox);
 vm.runInContext(evaluatorCode, sandbox);
 vm.runInContext(searcherCode, sandbox);
@@ -91,7 +117,7 @@ function formatMove(move) {
 
 // ==================== 对战主循环 ====================
 
-function runBattle() {
+async function runBattle() {
     const t0 = Date.now();
 
     log('========================================================');
@@ -124,7 +150,7 @@ function runBattle() {
 
         // AI 思考
         const thinkStart = Date.now();
-        const result = AI.selectBestMoveForPlayer(currentPlayer);
+        const result = await AI.selectBestMoveForPlayer(currentPlayer);
         const thinkTime = Date.now() - thinkStart;
 
         if (!result || !result.move) {
@@ -150,6 +176,8 @@ function runBattle() {
         log(`--- 第 ${moveNum} 手 | ${playerName} ---`);
         logSideBySide(boardLines, infoLines);
         log(`FEN: ${Engine.toFen()}`);
+        const sv = Engine.getStateView();
+        log(`HASH: ${sv.posHash} | buf[${(sv.writeIdx - 1) & 31}]=${sv.posBuf[(sv.writeIdx - 1) & 31]} | wIdx=${sv.writeIdx}`);
         log('');
 
         // 检查游戏结束
@@ -181,5 +209,6 @@ function runBattle() {
 
 // ==================== 执行 ====================
 
-const result = runBattle();
-console.log(`对战完成: ${mode1} vs ${mode2} | ${result.moves} 手 | ${result.elapsed}ms`);
+runBattle().then(result => {
+    console.log(`对战完成: ${mode1} vs ${mode2} | ${result.moves} 手 | ${result.elapsed}ms`);
+});
