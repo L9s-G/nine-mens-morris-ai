@@ -324,8 +324,8 @@ const Game = (() => {
         setThinking(true);
         playerMoves = [];
 
-        // 走前评估：narrator 分析局面，立即发出吐槽
-        const preMove = Narrator.assessPosition();
+        // 走前弹幕
+        const preMove = Taunt.getPreMessage(Engine.getStateView());
         showAILine(preMove.line);
 
         const result = await AI.selectBestMove();
@@ -356,8 +356,8 @@ const Game = (() => {
             showAILineRaw(`${debugText} < {D${depth}/${targetDepth} ${timeStr} ${nodesStr} T${temperature.toString().slice(0, 4)}}`);
         }
 
-        // 走后吐槽
-        const postLine = Narrator.reactToMove(result.move, result.score, preMove.tags);
+        // 走后弹幕
+        const postLine = Taunt.getPostMessage(Engine.getStateView(), result.move, preMove.ctx, result.score);
         showAILine(postLine);
 
         updateStatus();
@@ -427,7 +427,7 @@ const Game = (() => {
 
         if (E.isGameOver()) {
             const winner = E.getWinner();
-            el.textContent = winner === null ? '平局' : winner === E.TYPE_OPPONENT ? '你赢了！' : `${aiLabel}获胜`;
+            el.textContent = winner === null ? '局面重复三次' : winner === E.TYPE_OPPONENT ? '你赢了！' : `${aiLabel}获胜`;
         } else if (state.millMove) {
             el.textContent = '吃子阶段';
         } else if (opp.piecesOnHand > 0) {
@@ -526,7 +526,7 @@ const Game = (() => {
         const isPlayerFirst = settings.firstPlayer === 'opponent';
 
         // 标题
-        const title = isDraw ? '平局' : isPlayerWin ? '恭喜，玩家获胜！' : '哈哈，你输了！';
+        const title = isDraw ? '竟然，没输没赢！' : isPlayerWin ? '恭喜，玩家获胜！' : '哈哈，你输了！';
         document.getElementById('result-title').textContent = title;
 
         // 统计数据

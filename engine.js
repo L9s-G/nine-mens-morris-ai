@@ -101,6 +101,17 @@ const Engine = (() => {
         }
     }
 
+    /** 查询当前局面在窗口中的重复次数（只读，供弹幕等交互使用） */
+    function getRepetitionCount() {
+        const hash = state.posHash;
+        const buf = state.posBuf;
+        let count = 0;
+        for (let i = 0; i < POS_WINDOW; i++) {
+            if (buf[i] === hash) count++;
+        }
+        return count;
+    }
+
     // ==================== 内部状态 ====================
     let state = null;
 
@@ -621,6 +632,7 @@ const Engine = (() => {
         isGameOver,         // () → boolean
         getWinner,          // () → TYPE_OPPONENT | TYPE_AI | null
         getPhase,           // (player) → 'PLACEMENT' | 'MOVING' | 'FLYING'
+        getRepetitionCount, // () → 当前局面在窗口中的重复次数（只读）
 
         // ── 序列化 ──
         toFen,              // () → MILL-FEN 字符串

@@ -8,7 +8,7 @@ const ASSETS = [
     './searcher.js',
     './searcher.worker.js',
     './ai.js',
-    './narrator.js',
+    './taunt.js',
     './game.js',
     './manifest.json',
     './icon-192.png',
