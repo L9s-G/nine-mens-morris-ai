@@ -84,15 +84,32 @@ const Taunt = (() => {
     // 优先级由上到下，高特异性在前
 
     // ── 快捷谓词 ──
+
+    // 走前/走后
     const isPre = c => !c.move;
     const isPost = c => !!c.move;
-    const ahead = c => c.pieces.ai.total > c.pieces.opponent.total + 1;
-    const behind = c => c.pieces.ai.total < c.pieces.opponent.total - 1;
-    const oppFlying = c => c.phase.opponent === 'FLYING';
+    const formedMill = c => c.move && c.move.formedMill;
+    const captured = c => c.move && c.move.remove !== null;
+
+    // 1. 游戏阶段
+    const placement = c => c.phase.ai === 'PLACEMENT';
+    const moving = c => c.phase.ai === 'MOVING';
     const aiFlying = c => c.phase.ai === 'FLYING';
-    const lowOppMobility = c => c.mobility.opponent <= 4;
+    const oppFlying = c => c.phase.opponent === 'FLYING';
+    const ai4 = c => c.pieces.ai.onBoard === 4 && c.pieces.ai.onHand === 0;      // AI 4子（飞行前夕）
+    const opp4 = c => c.pieces.opponent.onBoard === 4 && c.pieces.opponent.onHand === 0;  // 对方4子
+
+    // 2. 局面数据
+    const forceStrong = c => c.pieces.ai.total >= c.pieces.opponent.total + 3;
+    const forceWeak = c => c.pieces.ai.total <= c.pieces.opponent.total - 3;
     const aiMoreMills = c => c.mills.ai.nearMills > c.mills.opponent.nearMills;
-    const oppThreatened = c => c.mills.opponent.hardNearMills >= 1 || c.mills.opponent.rollingForks >= 1;
+    const oppMoreMills = c => c.mills.opponent.nearMills > c.mills.ai.nearMills;
+    const lowOppMobility = c => c.mobility.opponent <= 4;
+    const lowAiMobility = c => c.mobility.ai <= 4;
+    const oppThreatened = c => c.mills.opponent.rollingForks >= 1;
+    const aiThreatened = c => c.mills.ai.rollingForks >= 1;
+    const oppHasHRF = c => c.mills.opponent.hardRollingForks >= 1;
+    const aiHasHRF = c => c.mills.ai.hardRollingForks >= 1;
 
     // 分数段谓词（AI 视角）
     const scoreWinning = c => c.score >= 2000;       // 必胜
@@ -104,204 +121,92 @@ const Taunt = (() => {
     const RULES = [
 
         // ══════════════════════════════════════════════════
-        // 走后规则（需要 ctx.move !== null）
+        // A. 走后规则（isPost）
         // ══════════════════════════════════════════════════
 
-        // 成磨 + 吃子 + 对手飞行
-        {
-            when: c => isPost(c) && c.move.formedMill && c.move.remove !== null && (c.phaseBefore && c.phaseBefore.opponent === 'FLYING'),
-            lines: [
-                '子少了，路断了，翅膀也折了。',
-                '吃一颗子而已，你慌什么？又飞不走。',
-                '你的棋子越来越少，路也越来越少，巧了。',
-            ]
-        },
-        // 成磨 + 吃子 + 必胜
-        {
-            when: c => isPost(c) && c.move.formedMill && c.move.remove !== null && scoreWinning(c),
-            lines: [
-                '全面进攻，你挡不住。',
-                '优势在我，磨坊已开。',
-                '收割的时间到了。',
-            ]
-        },
-        // 成磨 + 吃子 + 优势
-        {
-            when: c => isPost(c) && c.move.formedMill && c.move.remove !== null && scoreAhead(c),
-            lines: [
-                '火力建制碾压，你就认了吧。',
-                '磨坊已开，你挡不住。',
-            ]
-        },
-        // 成磨 + 吃子
-        {
-            when: c => isPost(c) && c.move.formedMill && c.move.remove !== null,
-            lines: [
-                '磨坊转起来了，顺便带走一颗子。',
-                '三子连线，收网，吃子。一气呵成。',
-                '成行是手段，吃子才是目的。',
-                '磨坊开了，你的棋子少了一颗。',
-                '转一圈，磨一颗。',
-            ]
-        },
-        // 走后给了对手机会（对手有威胁）
-        {
-            when: c => isPost(c) && oppThreatened(c),
-            lines: [
-                '你的磨坊我看见了，但我的棋更大。',
-                '先让你得意一下，君子报仇十轮不晚。',
-                '你以为这样我就会怕吗？等着。',
-                '厉害，没挡住。但你别高兴太早。',
-                '这一步我吞下了，下一步轮到你颤抖。',
-            ]
-        },
+        // A1. 成磨 + 吃子 + 对手飞行
+        { when: c => isPost(c) && formedMill(c) && captured(c) && oppFlying(c), lines: ['(A1) 成磨吃子+对手飞行'] },
+        // A2. 成磨 + 吃子 + 必胜
+        { when: c => isPost(c) && formedMill(c) && captured(c) && scoreWinning(c), lines: ['(A2) 成磨吃子+必胜'] },
+        // A3. 成磨 + 吃子 + 优势
+        { when: c => isPost(c) && formedMill(c) && captured(c) && scoreAhead(c), lines: ['(A3) 成磨吃子+优势'] },
+        // A4. 成磨 + 吃子
+        { when: c => isPost(c) && formedMill(c) && captured(c), lines: ['(A4) 成磨吃子'] },
+        // A5. 吃子（不含成磨）
+        { when: c => isPost(c) && captured(c), lines: ['(A5) 吃子'] },
+        // A6. 走后对手有 rf
+        { when: c => isPost(c) && oppThreatened(c), lines: ['(A6) 走后对手有rf'] },
+        // A7. 走后己方有 rf
+        { when: c => isPost(c) && aiThreatened(c), lines: ['(A7) 走后己方有rf'] },
+        // A8. 走后对手有 hrf
+        { when: c => isPost(c) && oppHasHRF(c), lines: ['(A8) 走后对手有hrf'] },
+        // A9. 走后己方有 hrf
+        { when: c => isPost(c) && aiHasHRF(c), lines: ['(A9) 走后己方有hrf'] },
 
         // ══════════════════════════════════════════════════
-        // 通用规则（走前走后都适用）
+        // B. 阶段规则（isPre + 阶段谓词）
         // ══════════════════════════════════════════════════
 
-        // 局面已出现 2 次，再来一次就判和
-        {
-            when: c => c.repetition >= 2,
-            lines: [
-                '等等，这个局面……我好像见过。',
-                'déjà vu？',
-                '历史总是惊人的相似。',
-                '这棋……是不是在循环？',
-                '我们是不是迷路了？',
-            ]
-        },
+        // B1. 对手飞行 + nearMills≥2
+        { when: c => isPre(c) && oppFlying(c) && c.mills.ai.nearMills >= 2, lines: ['(B1) 对手飞行+nearMills≥2'] },
+        // B2. 对手飞行 + 强势 + 对手受限
+        { when: c => isPre(c) && oppFlying(c) && forceStrong(c) && lowOppMobility(c), lines: ['(B2) 对手飞行+强势+对手受限'] },
+        // B3. 对手飞行
+        { when: c => isPre(c) && oppFlying(c), lines: ['(B3) 对手飞行'] },
+        // B4. 己方飞行 + 必死
+        { when: c => isPre(c) && aiFlying(c) && scoreLosing(c), lines: ['(B4) 己方飞行+必死'] },
+        // B5. 己方飞行 + 劣势
+        { when: c => isPre(c) && aiFlying(c) && scoreBehind(c), lines: ['(B5) 己方飞行+劣势'] },
+        // B6. 己方飞行
+        { when: c => isPre(c) && aiFlying(c), lines: ['(B6) 己方飞行'] },
+        // B7. 对方 4 子
+        { when: c => isPre(c) && opp4(c), lines: ['(B7) 对方4子'] },
+        // B8. 己方 4 子
+        { when: c => isPre(c) && ai4(c), lines: ['(B8) 己方4子'] },
+        // B9. 放置阶段
+        { when: c => isPre(c) && placement(c), lines: ['(B9) 放置阶段'] },
+        // B10. 移动阶段
+        { when: c => isPre(c) && moving(c), lines: ['(B10) 移动阶段'] },
 
         // ══════════════════════════════════════════════════
-        // 走前规则（ctx.move === null）
+        // C. 局面规则（isPre + 数值谓词）
         // ══════════════════════════════════════════════════
 
-        // ── 飞行阶段：对手飞行 ──
+        // C1. 必胜
+        { when: c => isPre(c) && scoreWinning(c), lines: ['(C1) 必胜'] },
+        // C2. 优势
+        { when: c => isPre(c) && scoreAhead(c), lines: ['(C2) 优势'] },
+        // C3. 劣势
+        { when: c => isPre(c) && scoreBehind(c), lines: ['(C3) 劣势'] },
+        // C4. 必死
+        { when: c => isPre(c) && scoreLosing(c), lines: ['(C4) 必死'] },
+        // C5. 兵力强势 ≥3
+        { when: c => isPre(c) && forceStrong(c), lines: ['(C5) 兵力强势'] },
+        // C6. 兵力弱势 ≥3
+        { when: c => isPre(c) && forceWeak(c), lines: ['(C6) 兵力弱势'] },
+        // C7. 己方 nearMill 更多
+        { when: c => isPre(c) && aiMoreMills(c), lines: ['(C7) 己方nearMill更多'] },
+        // C8. 对手 nearMill 更多
+        { when: c => isPre(c) && oppMoreMills(c), lines: ['(C8) 对手nearMill更多'] },
+        // C9. 对手机动性低
+        { when: c => isPre(c) && lowOppMobility(c), lines: ['(C9) 对手机动性低'] },
+        // C10. 己方机动性低
+        { when: c => isPre(c) && lowAiMobility(c), lines: ['(C10) 己方机动性低'] },
+        // C11. 对手有 rf
+        { when: c => isPre(c) && oppThreatened(c), lines: ['(C11) 对手有rf'] },
+        // C12. 己方有 rf
+        { when: c => isPre(c) && aiThreatened(c), lines: ['(C12) 己方有rf'] },
+        // C13. 对手有 hrf
+        { when: c => isPre(c) && oppHasHRF(c), lines: ['(C13) 对手有hrf'] },
+        // C14. 己方有 hrf
+        { when: c => isPre(c) && aiHasHRF(c), lines: ['(C14) 己方有hrf'] },
 
-        // 对手飞行 + 己方 nearMill ≥2
-        {
-            when: c => isPre(c) && oppFlying(c) && c.mills.ai.nearMills >= 2,
-            lines: [
-                '差一步成行，你好像飞不了？真巧。',
-                '磨坊快好了，你慢慢走，反正哪也去不了。',
-                '这条线你看着办。能飞的话早就飞了吧？',
-            ]
-        },
-        // 对手飞行 + 兵力优势 + 对手机动性低
-        {
-            when: c => isPre(c) && oppFlying(c) && ahead(c) && lowOppMobility(c),
-            lines: [
-                '路在我脚下，磨坊在眼前，你飞不起来。',
-                '四通八达，磨坊将成，你已经没路了。',
-                '我的路越走越宽，你的路越走越窄。',
-            ]
-        },
-        // 对手飞行
-        {
-            when: c => isPre(c) && oppFlying(c),
-            lines: [
-                '放心吧，我不会轻易放你飞的。',
-                '你以为逆风翻盘的机会到了？没风，哈哈。',
-                '空域管制，禁止起飞。',
-                '你能耐，你飞过去啊。',
-                '飞？想得美。',
-                '最后三颗子的滋味如何？慢慢享受。',
-            ]
-        },
+        // ══════════════════════════════════════════════════
+        // D. 通用
+        // ══════════════════════════════════════════════════
 
-        // ── 飞行阶段：己方飞行 ──
-
-        // 己方飞行 + 必死
-        {
-            when: c => isPre(c) && aiFlying(c) && scoreLosing(c),
-            lines: [
-                '大不了从头再来。你赶紧的，料理后事我们重开。',
-                '你别逼我，逼我我就……认输。',
-                '输给你不丢人……吧？',
-                '我承认你厉害，但你能不能别那么厉害？',
-            ]
-        },
-        // 己方飞行 + 劣势
-        {
-            when: c => isPre(c) && aiFlying(c) && scoreBehind(c),
-            lines: [
-                '我觉得我还能救一救。',
-                '等等，让我想想，一定有办法的。',
-                '别催，我在想绝地反击的剧本。',
-                '你先别得意，也许或者可能我会突然翻盘……吧……',
-            ]
-        },
-        // 己方飞行
-        {
-            when: c => isPre(c) && aiFlying(c),
-            lines: [
-                '你赢了棋，但你赢不了我的心。',
-                '这一步我先记下，秋后算账。',
-                '你笑吧，反正我也拦不住。',
-                '做人留一线，他朝好相见。',
-            ]
-        },
-
-        // ── 分数段规则 ──
-
-        // 必胜
-        {
-            when: c => isPre(c) && scoreWinning(c),
-            lines: [
-                '结局已经写好了，你慢慢走。',
-                '这盘棋没什么悬念了。',
-                '你可以认了。',
-            ]
-        },
-        // 必死
-        {
-            when: c => isPre(c) && scoreLosing(c),
-            lines: [
-                '我的错，我反思。',
-                '这局能不算吗，你撤单吧，重开。',
-                '谁来管管这个人。',
-                '我裂开了。',
-            ]
-        },
-
-        // ── 局面规则 ──
-
-        // 对手机动性低
-        {
-            when: c => isPre(c) && lowOppMobility(c),
-            lines: [
-                '巨大的包围圈，正在收缩。',
-                '走自己的路，让别人无路可走。',
-                '收紧绞索，你无处可逃。',
-                '你的活动空间正在蒸发。',
-                '窒息的感觉如何？',
-                '还有地方走吗？我帮你数数。',
-                '每走一步，路就少一条。',
-                '棋盘很大，但属于你的角落越来越小。',
-            ]
-        },
-        // 己方 nearMill 更多
-        {
-            when: c => isPre(c) && aiMoreMills(c),
-            lines: [
-                '这步棋平平无奇？你自己品。',
-                '安静。别打扰我布局。',
-                '你没发现？那最好。',
-                '走着走着，磨坊就来了。',
-            ]
-        },
-        // 放置阶段
-        {
-            when: c => isPre(c) && c.phase.ai === 'PLACEMENT',
-            lines: [
-                '开局而已，看看坐哪合适。',
-                '先占个坑，后面再说。',
-                '慢慢放，慢慢占，不急。',
-                '人越来越多了，我得找个宽敞地儿。',
-                '棋盘还空着，先逛逛。',
-                '这一步不重要？那你再想想。',
-            ]
-        },
+        // D1. déjà vu
+        { when: c => c.repetition >= 2, lines: ['(D1) déjà vu'] },
 
         // ══════════════════════════════════════════════════
         // 兜底
