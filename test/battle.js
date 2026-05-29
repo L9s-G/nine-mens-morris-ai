@@ -158,37 +158,52 @@ async function runBattle() {
         }
 
         // 执行走法
-        Engine.makeMove(result.move);
+        const formedMill = Engine.makeMove(result.move);
 
-        // 棋盘 + 走法信息并排显示
-        const boardLines = getBoardLines(Engine.getBoard());
-        const pOpp = state.playerOpponent;
-        const pAI = state.playerAI;
+        // 日志函数
+        function logMove(num, label, move, score, depth, targetDepth, ms, nodes) {
+            const bLines = getBoardLines(Engine.getBoard());
+            const st = Engine.getStateView();
+            const o = st.playerOpponent, a = st.playerAI;
+            const tp = ms > 0 ? Math.round(nodes / ms) : 0;
+            const oM = Evaluator.countMobility(Engine.TYPE_OPPONENT);
+            const aM = Evaluator.countMobility(Engine.TYPE_AI);
+            const oMills = Evaluator.analyzeMills(Engine.TYPE_OPPONENT);
+            const aMills = Evaluator.analyzeMills(Engine.TYPE_AI);
+            const iLines = [
+                `棋子: 白${o.piecesOnHand}+${o.piecesOnBoard}-${o.piecesLost} | 黑${a.piecesOnHand}+${a.piecesOnBoard}-${a.piecesLost}`,
+                `走法: ${formatMove(move)}`,
+                `评分: ${score} | 深度: ${depth}/${targetDepth}`,
+                `用时: ${ms}ms | 节点: ${nodes} | 吞吐: ${tp}n/ms`,
+                `机动: 白${oM} 黑${aM}`,
+                `磨坊: 白 ${oMills.nearMills}/${oMills.hardNearMills} : ${oMills.rollingForks}/${oMills.hardRollingForks} | 黑 ${aMills.nearMills}/${aMills.hardNearMills} : ${aMills.rollingForks}/${aMills.hardRollingForks} [nm/hnm : rf/hrf]`,
+            ];
+            log(`--- 第 ${num} 手 | ${label} ---`);
+            logSideBySide(bLines, iLines);
+            log(`FEN: ${Engine.toFen()}`);
+            const sv = Engine.getStateView();
+            log(`HASH: ${sv.posHash} | buf[${(sv.writeIdx - 1) & 31}]=${sv.posBuf[(sv.writeIdx - 1) & 31]} | wIdx=${sv.writeIdx}`);
+            log('');
+        }
 
-        // 吞吐量
-        const throughput = thinkTime > 0 ? Math.round(result.stats.nodeCount / thinkTime) : 0;
+        logMove(moveNum, playerName, result.move, result.score, result.stats.depth, result.stats.targetDepth, thinkTime, result.stats.nodeCount);
 
-        // 机动性与磨坊（走前状态，用于核对评估算法）
-        const oppMob = Evaluator.countMobility(Engine.TYPE_OPPONENT);
-        const aiMob = Evaluator.countMobility(Engine.TYPE_AI);
-        const oppMills = Evaluator.analyzeMills(Engine.TYPE_OPPONENT);
-        const aiMills = Evaluator.analyzeMills(Engine.TYPE_AI);
-
-        const infoLines = [
-            `棋子: 白${pOpp.piecesOnHand}+${pOpp.piecesOnBoard}-${pOpp.piecesLost} | 黑${pAI.piecesOnHand}+${pAI.piecesOnBoard}-${pAI.piecesLost}`,
-            `走法: ${formatMove(result.move)}`,
-            `评分: ${result.score} | 深度: ${result.stats.depth}/${result.stats.targetDepth}`,
-            `用时: ${thinkTime}ms | 节点: ${result.stats.nodeCount} | 吞吐: ${throughput}n/ms`,
-            `机动: 白${oppMob} 黑${aiMob}`,
-            `磨坊: 白 ${oppMills.nearMills}/${oppMills.hardNearMills} : ${oppMills.rollingForks}/${oppMills.hardRollingForks} | 黑 ${aiMills.nearMills}/${aiMills.hardNearMills} : ${aiMills.rollingForks}/${aiMills.hardRollingForks} [nm/hnm : rf/hrf]`,
-        ];
-
-        log(`--- 第 ${moveNum} 手 | ${playerName} ---`);
-        logSideBySide(boardLines, infoLines);
-        log(`FEN: ${Engine.toFen()}`);
-        const sv = Engine.getStateView();
-        log(`HASH: ${sv.posHash} | buf[${(sv.writeIdx - 1) & 31}]=${sv.posBuf[(sv.writeIdx - 1) & 31]} | wIdx=${sv.writeIdx}`);
-        log('');
+        // 成磨后必须吃子
+        if (formedMill) {
+            const captureMoves = Engine.generateLegalMoves(currentPlayer);
+            if (captureMoves.length > 0) {
+                let best = captureMoves[0], bestScore = -Infinity;
+                for (const cm of captureMoves) {
+                    Engine.makeMove(cm);
+                    const s = Evaluator.evaluate(0, null);
+                    Engine.undoMove();
+                    if (s > bestScore) { bestScore = s; best = cm; }
+                }
+                Engine.makeMove(best);
+                moveNum++;
+                logMove(moveNum, playerName + ' 吃子', best, bestScore, 0, 0, 0, 0);
+            }
+        }
 
         // 检查游戏结束
         if (Engine.isGameOver()) {
