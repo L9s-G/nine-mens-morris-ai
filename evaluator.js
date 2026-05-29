@@ -203,7 +203,7 @@ const Evaluator = (() => {
 
     const WEIGHTS = {
         // ── 吃子价值（非线性，取决于对手剩余子数）──
-        capture_ge4: 100,    // 对手剩余 >=4 子，对手机动性越小AI奖励越高，吃子有价值
+        capture_ge4: 150,    // 对手剩余 >=4 子，对手机动性越小AI奖励越高，吃子有价值
         capture_fly: 200,    // 飞行转折期吃子策略
         // 对手剩余 2 子：SCORE_WIN 覆盖
 

@@ -19,7 +19,8 @@ for (const file of files) {
     // 解析结果
     let winner = '?', totalMoves = 0, totalTime = 0;
     for (const line of lines) {
-        if (line.includes('胜者:')) winner = line.split('胜者: ')[1].trim();
+        if (line.includes('获胜')) winner = line.split('！')[1].replace('获胜', '').trim();
+        else if (line.includes('平局')) winner = '平局';
         if (line.includes('总手数:')) totalMoves = parseInt(line.split('总手数: ')[1]);
         if (line.includes('总用时:')) totalTime = parseInt(line.match(/(\d+)ms/)[1]);
     }

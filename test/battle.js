@@ -131,7 +131,7 @@ async function runBattle() {
 
     let moveNum = 0;
     let gameOver = false;
-    const MAX_MOVES = 1000; // 防止无限循环（测试 250 步判和）
+    const MAX_MOVES = 200; // 防止无限循环
 
     while (!gameOver && moveNum < MAX_MOVES) {
         const state = Engine.getStateView();
@@ -209,17 +209,19 @@ async function runBattle() {
         if (Engine.isGameOver()) {
             gameOver = true;
             const w = Engine.getWinner();
-            const winner = w === null ? '平局' : w === Engine.TYPE_OPPONENT ? `${mode1}(白)` : `${mode2}(黑)`;
+            const result = w === null ? '平局：发生3次循环' : `${w === Engine.TYPE_OPPONENT ? mode1 : mode2}获胜`;
             log('========================================================');
-            log(`游戏结束！胜者: ${winner}`);
-            log(`总手数: ${moveNum}`);
-            log(`总用时: ${Date.now() - t0}ms`);
+            log(`游戏结束！${result}`);
+            log(`总手数: ${moveNum} | 总用时: ${Date.now() - t0}ms`);
             log('========================================================');
         }
     }
 
     if (!gameOver) {
-        log('[!] 达到最大手数限制，判定为平局');
+        log('========================================================');
+        log(`游戏结束！平局：最大回合${MAX_MOVES}`);
+        log(`总手数: ${moveNum} | 总用时: ${Date.now() - t0}ms`);
+        log('========================================================');
     }
 
     // 关闭日志文件

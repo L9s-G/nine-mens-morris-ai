@@ -448,6 +448,8 @@ const Engine = (() => {
             }
         }
 
+        // 吃子走法优先（加速 alpha-beta 剪枝）
+        finalMoves.sort((a, b) => (b.remove !== null ? 1 : 0) - (a.remove !== null ? 1 : 0));
         return finalMoves;
     }
 
