@@ -352,8 +352,9 @@ const Game = (() => {
                 return `[${desc}${eat}|${s.score}]`;
             }).join(' ');
             const timeStr = elapsed >= 1000 ? `${Math.round(elapsed / 1000)}s` : `${Math.round(elapsed)}ms`;
-            const nodesStr = nodeCount >= 1000 ? `${Math.round(nodeCount / 1000)}k` : `${Math.round(nodeCount)}n`;
-            showAILineRaw(`${debugText} < {D${depth}/${targetDepth} ${timeStr} ${nodesStr} T${temperature.toString().slice(0, 4)}}`);
+            const nodesStr = nodeCount >= 1000000 ? `${(nodeCount / 1000000).toFixed(1)}M` : nodeCount >= 1000 ? `${Math.round(nodeCount / 1000)}k` : `${nodeCount}`;
+            const tp = elapsed > 0 ? Math.round(nodeCount / elapsed) : 0;
+            showAILineRaw(`${debugText} < {D${depth}/${targetDepth} ${timeStr} ${nodesStr} ${tp}/ms T${temperature.toString().slice(0, 4)}}`);
         }
 
         // 走后弹幕
@@ -707,6 +708,7 @@ const Game = (() => {
         debugMode = !debugMode;
         svgDebug.style.display = debugMode ? 'block' : 'none';
         AI.setDebugMode(debugMode);
+        Taunt.configure({ debug: debugMode });
 
         // Debug 开启时加入恶魔选项，关闭时移除并回退
         const hasDemon = DIFFICULTIES.some(d => d.key === 'Demon');
