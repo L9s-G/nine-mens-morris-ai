@@ -38,97 +38,118 @@ const Evaluator = (() => {
      * @returns {{ nearMills: number, hardNearMills: number, rollingForks: number, hardRollingForks: number }}
      */
     function analyzeMills(player) {
-        const board = E.getStateView().board;
-        const phase = E.getPhase(player);
-        const opp = player === E.TYPE_OPPONENT ? E.TYPE_AI : E.TYPE_OPPONENT;
-        const oppPhase = E.getPhase(opp);
+        const both = analyzeMillsBoth();
+        return player === E.TYPE_AI ? both.ai : both.opp;
+    }
 
-        let nearMills = 0, hardNearMills = 0, rollingForks = 0, hardRollingForks = 0;
-        const counted = new Set(); // 共享 posE 去重：多条 mill 线共享同一空位只算一个威胁
+    /**
+     * 单次遍历 16 条 mill 线，同时产出双方 mill 统计
+     * 己方/对手的棋子不可能同时占据同一条 mill 线的三个位置，
+     * 故同一条线不会同时为双方产生 2+1 模式，单次遍历无歧义。
+     *
+     * @returns {{ ai: MillStats, opp: MillStats }}
+     */
+    function analyzeMillsBoth() {
+        const board = E.getStateView().board;
+        const aiPhase = E.getPhase(E.TYPE_AI);
+        const oppPhase = E.getPhase(E.TYPE_OPPONENT);
+
+        const rAI = { nearMills: 0, hardNearMills: 0, rollingForks: 0, hardRollingForks: 0 };
+        const rOpp = { nearMills: 0, hardNearMills: 0, rollingForks: 0, hardRollingForks: 0 };
+        const countedAI = new Set();
+        const countedOpp = new Set();
 
         for (let i = 0; i < E.MILLS.length; i++) {
             const [a, b, c] = E.MILLS[i];
-            const vals = [board[a], board[b], board[c]];
+            const va = board[a], vb = board[b], vc = board[c];
 
-            // 数己方棋子和空位
-            let mine = 0, posE = -1;
-            for (let j = 0; j < 3; j++) {
-                if (vals[j] === player) mine++;
-                else if (vals[j] === null) posE = [a, b, c][j];
-            }
+            // 单次遍历统计三方数量
+            let cntOpp = 0, cntAI = 0, emptyCnt = 0;
+            if (va === E.TYPE_OPPONENT) cntOpp++; else if (va === E.TYPE_AI) cntAI++; else emptyCnt++;
+            if (vb === E.TYPE_OPPONENT) cntOpp++; else if (vb === E.TYPE_AI) cntAI++; else emptyCnt++;
+            if (vc === E.TYPE_OPPONENT) cntOpp++; else if (vc === E.TYPE_AI) cntAI++; else emptyCnt++;
 
-            // 不是 2+1，跳过
-            if (mine !== 2 || posE === -1) continue;
-            // 共享 posE 去重
-            if (counted.has(posE)) continue;
+            // 对两个玩家分别检测 2+1 模式（同一条线不会同时为双方产生 2+1）
+            for (let p = 0; p < 2; p++) {
+                const player = p === 0 ? E.TYPE_OPPONENT : E.TYPE_AI;
+                const mine = p === 0 ? cntOpp : cntAI;
+                if (mine !== 2 || emptyCnt !== 1) continue;
 
-            const neighbors = E.NEIGHBORS[posE];
+                const opp = p === 0 ? E.TYPE_AI : E.TYPE_OPPONENT;
+                const phase = p === 0 ? oppPhase : aiPhase;
+                const oppPh = p === 0 ? aiPhase : oppPhase;
+                const r = p === 0 ? rOpp : rAI;
+                const counted = p === 0 ? countedOpp : countedAI;
 
-            // ── nearMill：空位是否可达（排除本 mill 线上的己方子）──
-            let reachable = false;
-            if (phase !== E.PHASE_MOVING) {
-                reachable = true;
-            } else {
+                // 找到空位 posE
+                let posE = va === E.EMPTY ? a : vb === E.EMPTY ? b : c;
+                if (counted.has(posE)) continue;
+
+                const neighbors = E.NEIGHBORS[posE];
+
+                // ── nearMill：空位是否可达 ──
+                let reachable = false;
+                if (phase !== E.PHASE_MOVING) {
+                    reachable = true;
+                } else {
+                    for (let n = 0; n < neighbors.length; n++) {
+                        const nb = neighbors[n];
+                        if (nb === a || nb === b || nb === c) continue;
+                        if (board[nb] === player) { reachable = true; break; }
+                    }
+                }
+                if (!reachable) continue;
+                counted.add(posE);
+                r.nearMills++;
+
+                // ── hardNearMill：对手不可达 ──
+                if (oppPh === E.PHASE_MOVING) {
+                    let oppCanBlock = false;
+                    for (let n = 0; n < neighbors.length; n++) {
+                        if (board[neighbors[n]] === opp) { oppCanBlock = true; break; }
+                    }
+                    if (!oppCanBlock) r.hardNearMills++;
+                }
+
+                // ── rollingFork ──
+                let posN = -1;
                 for (let n = 0; n < neighbors.length; n++) {
                     const nb = neighbors[n];
                     if (nb === a || nb === b || nb === c) continue;
-                    if (board[nb] === player) { reachable = true; break; }
+                    if (board[nb] === player && isInCompletedMill(board, nb, player)) {
+                        posN = nb; break;
+                    }
                 }
-            }
-            if (!reachable) continue;
-            counted.add(posE);
-            nearMills++;
+                if (posN === -1) continue;
+                r.rollingForks++;
 
-            // ── hardNearMill：对手不可达（无法 block）──
-            if (oppPhase === E.PHASE_MOVING) {
-                let oppCanBlock = false;
+                // ── hardRollingFork ──
+                if (oppPh !== E.PHASE_MOVING) continue;
+                let hard = true;
                 for (let n = 0; n < neighbors.length; n++) {
-                    if (board[neighbors[n]] === opp) { oppCanBlock = true; break; }
+                    if (board[neighbors[n]] === opp) { hard = false; break; }
                 }
-                if (!oppCanBlock) hardNearMills++;
-            }
-
-            // ── rollingFork：空位的外部邻居是否在已完成 mill 中 ──
-            // posN 移到 posE 后，posN 原位置变空，形成新 2+1
-            // Morris mill 线结构保证：移走任意一子，剩余 2 子必有一子与空位相邻 → 新 2+1 必然可达
-            let posN = -1;
-            for (let n = 0; n < neighbors.length; n++) {
-                const nb = neighbors[n];
-                if (nb === a || nb === b || nb === c) continue;
-                if (board[nb] === player && isInCompletedMill(board, nb, player)) {
-                    posN = nb;
-                    break;
+                if (hard) {
+                    const posNNeighbors = E.NEIGHBORS[posN];
+                    for (let n = 0; n < posNNeighbors.length; n++) {
+                        if (board[posNNeighbors[n]] === opp) { hard = false; break; }
+                    }
                 }
+                if (hard) r.hardRollingForks++;
             }
-            if (posN === -1) continue;
-            rollingForks++;
-
-            // ── hardRollingFork：posE 和 posN 都对手不可达 ──
-            // posE：对手占位可阻止落子成磨
-            // posN：对手占位可阻止后续 rolling fork
-            if (oppPhase !== E.PHASE_MOVING) continue;
-            let hard = true;
-            // 检查 posE 的邻居
-            for (let n = 0; n < neighbors.length; n++) {
-                if (board[neighbors[n]] === opp) { hard = false; break; }
-            }
-            // 检查 posN 的邻居
-            if (hard) {
-                const posNNeighbors = E.NEIGHBORS[posN];
-                for (let n = 0; n < posNNeighbors.length; n++) {
-                    if (board[posNNeighbors[n]] === opp) { hard = false; break; }
-                }
-            }
-            if (hard) hardRollingForks++;
         }
 
         // placement/flying 阶段：对手每步只能落/飞一子，N-1 个无法同时 block
         if (oppPhase !== E.PHASE_MOVING) {
-            hardNearMills = Math.max(0, nearMills - 1);
-            hardRollingForks = Math.max(0, rollingForks - 1);
+            rOpp.hardNearMills = Math.max(0, rOpp.nearMills - 1);
+            rOpp.hardRollingForks = Math.max(0, rOpp.rollingForks - 1);
+        }
+        if (aiPhase !== E.PHASE_MOVING) {
+            rAI.hardNearMills = Math.max(0, rAI.nearMills - 1);
+            rAI.hardRollingForks = Math.max(0, rAI.rollingForks - 1);
         }
 
-        return { nearMills, hardNearMills, rollingForks, hardRollingForks };
+        return { ai: rAI, opp: rOpp };
     }
 
     // ==================== 机动性 ====================
@@ -149,7 +170,7 @@ const Evaluator = (() => {
         let mobility = 0;
 
         for (let i = 0; i < E.BOARD_SIZE; i++) {
-            if (board[i] !== null) continue;
+            if (board[i] !== E.EMPTY) continue;
             if (phase !== E.PHASE_MOVING) {
                 mobility++;
                 continue;
@@ -188,7 +209,7 @@ const Evaluator = (() => {
             let m = 0;
             const neighbors = E.NEIGHBORS[i];
             for (let j = 0; j < neighbors.length; j++) {
-                if (board[neighbors[j]] === null) m++;
+                if (board[neighbors[j]] === E.EMPTY) m++;
             }
             result.push({ pos: i, mobility: m });
         }
@@ -253,9 +274,8 @@ const Evaluator = (() => {
             // oppPieces === 2: SCORE_WIN 已覆盖
         }
 
-        // ── Mill 威胁：己方 - 对手 ──
-        const aiMills = analyzeMills(E.TYPE_AI);
-        const oppMills = analyzeMills(E.TYPE_OPPONENT);
+        // ── Mill 威胁：己方 - 对手（单次遍历）──
+        const { ai: aiMills, opp: oppMills } = analyzeMillsBoth();
 
         score += WEIGHTS.nearMill * w * ((aiMills.nearMills > oppMills.nearMills) - (aiMills.nearMills < oppMills.nearMills));
         score += WEIGHTS.hardNearMill * w * ((aiMills.hardNearMills > oppMills.hardNearMills) - (aiMills.hardNearMills < oppMills.hardNearMills));
@@ -288,6 +308,7 @@ const Evaluator = (() => {
         SCORE_WIN, SCORE_LOSE,
         WEIGHTS,
         analyzeMills,        // (player) → { nearMills, hardNearMills, rollingForks, hardRollingForks }
+        analyzeMillsBoth,    // () → { ai: MillStats, opp: MillStats }  单次遍历双方
         countMobility,       // (player) → 可达空位数
         getPieceMobility,    // (player) → [{ pos, mobility }]（备用）
         evaluate             // (depth, ctx) → 局面分数（AI 视角）

@@ -24,8 +24,7 @@ const Taunt = (() => {
     function buildContext(state, move = null, score = 0) {
         const aiData = state.playerAI;
         const oppData = state.playerOpponent;
-        const aiMills = EV.analyzeMills(E.TYPE_AI);
-        const oppMills = EV.analyzeMills(E.TYPE_OPPONENT);
+        const { ai: aiMills, opp: oppMills } = EV.analyzeMillsBoth();
         const aiTotal = aiData.piecesOnBoard + aiData.piecesOnHand;
         const oppTotal = oppData.piecesOnBoard + oppData.piecesOnHand;
 

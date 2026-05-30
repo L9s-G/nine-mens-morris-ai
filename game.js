@@ -96,7 +96,7 @@ const Game = (() => {
 
         // 绘制棋子
         for (let i = 0; i < BOARD_SIZE; i++) {
-            if (board[i] === null) continue;
+            if (board[i] === E.EMPTY) continue;
             const { x, y } = posToSvg(i);
             const isWhite = board[i] === E.TYPE_OPPONENT;
             const circle = createSvgElement('circle', {
@@ -124,7 +124,7 @@ const Game = (() => {
         const board = E.getBoard();
         for (const target of legalTargets) {
             // 吃子目标由棋子 .capture 样式处理，此处只画空位高亮
-            const isCaptureTarget = board[target] !== null;
+            const isCaptureTarget = board[target] !== E.EMPTY;
             if (isCaptureTarget) continue;
 
             const { x, y } = posToSvg(target);
@@ -601,7 +601,7 @@ const Game = (() => {
         item.style.animationDuration = `${duration}s`;
 
         layer.appendChild(item);
-        setTimeout(() => item.remove(), duration * 1000);
+        item.addEventListener('animationend', () => item.remove(), { once: true });
     }
 
     // 气泡（横屏）

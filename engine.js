@@ -10,8 +10,9 @@
 
 const Engine = (() => {
     // ==================== 常量定义 ====================
+    const EMPTY = 0;           // 空位
     const TYPE_OPPONENT = 1;   // 白棋
-    const TYPE_AI = 2;   // 黑棋
+    const TYPE_AI = 2;         // 黑棋
     const BOARD_SIZE = 24;
 
     // 每个点的邻居关系（移动时使用）
@@ -73,7 +74,7 @@ const Engine = (() => {
         for (let i = 0; i < BOARD_SIZE; i++) {
             if (board[i]) h += board[i] * pow3[i];
         }
-        return h >>> 0;
+        return u32(h);
     }
 
     /** 推入位置哈希到环形缓冲区 */
@@ -123,7 +124,7 @@ const Engine = (() => {
         } = config;
 
         return {
-            board: new Array(BOARD_SIZE).fill(null),   // null | TYPE_OPPONENT | TYPE_AI
+            board: new Array(BOARD_SIZE).fill(EMPTY),   // EMPTY | TYPE_OPPONENT | TYPE_AI
 
             currentPlayer: firstPlayer,                // 当前玩家
             millMove: false,                           // 是否处于吃子阶段（刚形成 Mill）
@@ -151,6 +152,9 @@ const Engine = (() => {
     }
 
     // ==================== 工具函数 ====================
+
+    /** 截断为 32 位无符号整数（哈希增量更新后保持 Uint32Array 一致性） */
+    function u32(n) { return n >>> 0; }
 
     const PHASE_PLACEMENT = 'PLACEMENT';
     const PHASE_MOVING = 'MOVING';
@@ -186,7 +190,7 @@ const Engine = (() => {
 
     /**
      * 在空位 to 落子是否会形成磨坊
-     * 前提：board[to] === null
+     * 前提：board[to] === EMPTY
      * 逻辑：to 所在的每条磨坊线，另外两子是否都是 player
      */
     function wouldFormMill(board, to, player) {
@@ -272,7 +276,7 @@ const Engine = (() => {
             const v = val % 3;
             if (v === TYPE_OPPONENT) onBoardOpp++;
             else if (v === TYPE_AI) onBoardAI++;
-            board[i] = v === 0 ? null : v;
+            board[i] = v;  // 0=EMPTY, 1=TYPE_OPPONENT, 2=TYPE_AI
             val = (val - v) / 3;
         }
 
@@ -305,7 +309,6 @@ const Engine = (() => {
             writeIdx: 0
         };
         pushHash(hash);
-        return getState();
     }
 
     // ==================== 走法生成 ====================
@@ -381,7 +384,7 @@ const Engine = (() => {
         // 1. 放置阶段
         if (phase === PHASE_PLACEMENT) {
             for (let to = 0; to < BOARD_SIZE; to++) {
-                if (state.board[to] === null) {
+                if (state.board[to] === EMPTY) {
                     moves.push({ player, type: 'place', from: -1, to, remove: null });
                 }
             }
@@ -398,12 +401,12 @@ const Engine = (() => {
                 let targets = [];
                 if (phase === PHASE_FLYING) {
                     for (let i = 0; i < BOARD_SIZE; i++) {
-                        if (state.board[i] === null) targets.push(i);
+                        if (state.board[i] === EMPTY) targets.push(i);
                     }
                 } else {
                     const neighbors = NEIGHBORS[from];
                     for (let ni = 0; ni < neighbors.length; ni++) {
-                        if (state.board[neighbors[ni]] === null) targets.push(neighbors[ni]);
+                        if (state.board[neighbors[ni]] === EMPTY) targets.push(neighbors[ni]);
                     }
                 }
 
@@ -421,22 +424,28 @@ const Engine = (() => {
         }
 
         // 3. 处理吃子逻辑
+        // removable 在走法生成阶段不依赖具体走法（board 未变动），
+        // 且己方落子不可能改变对手棋子的 mill 状态，故可预计算复用。
         const finalMoves = [];
         const board = state.board;
+        let removable = null; // 延迟初始化：仅当成磨走法存在时才计算
+
         for (let mi = 0; mi < moves.length; mi++) {
             const move = moves[mi];
 
             if (wouldFormMill(board, move.to, player)) {
-                // 形成磨坊，需要吃子
-                let removable = [];
-                for (let i = 0; i < BOARD_SIZE; i++) {
-                    if (board[i] === opp && !isInMill(board, i)) {
-                        removable.push(i);
-                    }
-                }
-                if (removable.length === 0) {
+                // 首次成磨时计算可吃子列表，后续复用
+                if (removable === null) {
+                    removable = [];
                     for (let i = 0; i < BOARD_SIZE; i++) {
-                        if (board[i] === opp) removable.push(i);
+                        if (board[i] === opp && !isInMill(board, i)) {
+                            removable.push(i);
+                        }
+                    }
+                    if (removable.length === 0) {
+                        for (let i = 0; i < BOARD_SIZE; i++) {
+                            if (board[i] === opp) removable.push(i);
+                        }
                     }
                 }
 
@@ -473,14 +482,14 @@ const Engine = (() => {
         // ── 吃子走法 ──
         if (type === 'remove') {
             if (remove !== null) {
-                state.board[remove] = null;
-                state.posHash -= opp * pow3[remove]; state.posHash >>>= 0;
+                state.board[remove] = EMPTY;
+                state.posHash = u32(state.posHash - opp * pow3[remove]);
                 oppP.piecesOnBoard--;
                 oppP.piecesLost++;
             }
 
             state.currentPlayer = opp;
-            state.posHash += opp - player; state.posHash >>>= 0;
+            state.posHash = u32(state.posHash + opp - player);
             state.millMove = false;
             state.moveHistory.push(historyEntry);
 
@@ -493,13 +502,13 @@ const Engine = (() => {
         const formedMill = (() => {
             if (type === 'place') {
                 state.board[to] = player;
-                state.posHash += player * pow3[to]; state.posHash >>>= 0;
+                state.posHash = u32(state.posHash + player * pow3[to]);
                 p.piecesOnHand--;
                 p.piecesOnBoard++;
             } else {
                 state.board[from] = null;
                 state.board[to] = player;
-                state.posHash += player * (pow3[to] - pow3[from]); state.posHash >>>= 0;
+                state.posHash = u32(state.posHash + player * (pow3[to] - pow3[from]));
             }
             return isInMill(state.board, to);
         })();
@@ -508,7 +517,7 @@ const Engine = (() => {
             state.millMove = true;
         } else {
             state.currentPlayer = opp;
-            state.posHash += opp - player; state.posHash >>>= 0;
+            state.posHash = u32(state.posHash + opp - player);
         }
 
         historyEntry.formedMill = formedMill;
@@ -544,7 +553,7 @@ const Engine = (() => {
                 if (board[i] !== player) continue;
                 const neighbors = NEIGHBORS[i];
                 for (let j = 0; j < neighbors.length; j++) {
-                    if (board[neighbors[j]] === null) { canMove = true; break; }
+                    if (board[neighbors[j]] === EMPTY) { canMove = true; break; }
                 }
             }
             if (!canMove) {
@@ -572,32 +581,32 @@ const Engine = (() => {
 
             if (remove !== null) {
                 state.board[remove] = removedFrom || opp;
-                state.posHash += opp * pow3[remove]; state.posHash >>>= 0;
+                state.posHash = u32(state.posHash + opp * pow3[remove]);
                 oppP.piecesOnBoard++;
                 oppP.piecesLost--;
             }
 
             state.currentPlayer = player;
-            state.posHash += player - opp; state.posHash >>>= 0;
+            state.posHash = u32(state.posHash + player - opp);
             state.millMove = true;
         } else {
             // ── 普通走法的撤销（place / move / fly）──
             popHash();
 
             if (type === 'place') {
-                state.board[to] = null;
-                state.posHash -= player * pow3[to]; state.posHash >>>= 0;
+                state.board[to] = EMPTY;
+                state.posHash = u32(state.posHash - player * pow3[to]);
                 p.piecesOnHand++;
                 p.piecesOnBoard--;
             } else {
                 state.board[from] = player;
-                state.board[to] = null;
-                state.posHash -= player * (pow3[to] - pow3[from]); state.posHash >>>= 0;
+                state.board[to] = EMPTY;
+                state.posHash = u32(state.posHash - player * (pow3[to] - pow3[from]));
             }
 
             if (!formedMill) {
                 state.currentPlayer = player;
-                state.posHash += player - opp; state.posHash >>>= 0;
+                state.posHash = u32(state.posHash + player - opp);
             }
             state.millMove = false;
         }
@@ -610,6 +619,7 @@ const Engine = (() => {
     // ==================== 公开接口 ====================
     return {
         // ── 玩家常量 ──
+        EMPTY,              // 0 (空位)
         TYPE_OPPONENT,      // 1 (白棋)
         TYPE_AI,            // 2 (黑棋)
         BOARD_SIZE,         // 24 个位置
@@ -638,7 +648,7 @@ const Engine = (() => {
 
         // ── 序列化 ──
         toFen,              // () → MILL-FEN 字符串
-        fromFen,            // (fen) → 恢复局面（预留：游戏恢复/残局功能）
+        fromFen,            // (fen) → 恢复局面
 
         // ── 走法核心 ──
         generateLegalMoves, // (player) → Move[]（含：成磨展开吃子）
