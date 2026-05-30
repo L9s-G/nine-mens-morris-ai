@@ -26,14 +26,19 @@ for (const file of files) {
     }
 
     // 解析峰值吞吐量（忽略 <5ms 的短搜索，避免浅层搜索污染数据）
-    let maxTP = 0, maxTPMove = 0, moveNum = 0;
+    let maxTP = 0, maxTPMove = 0, moveNum = 0, timeWalls = 0;
     for (const line of lines) {
         if (line.startsWith('--- 第')) moveNum = parseInt(line.match(/第 (\d+) 手/)[1]);
         const t = line.match(/用时: (\d+)ms/);
         const m = line.match(/吞吐: (\d+)n\/ms/);
+        const d = line.match(/深度: (\d+)\/(\d+)/);
         if (t && m && parseInt(t[1]) >= 5 && parseInt(m[1]) > maxTP) {
             maxTP = parseInt(m[1]);
             maxTPMove = moveNum;
+        }
+        // 时间墙：深度未完成（actual != target）且用时 > 5s
+        if (d && t && parseInt(d[1]) !== parseInt(d[2]) && parseInt(t[1]) > 5000) {
+            timeWalls++;
         }
     }
 
@@ -44,17 +49,27 @@ for (const file of files) {
     else if (winner.includes(mode1)) result = `${s1}胜`;
     else result = `${s2}胜`;
 
-    results.push({ label: `${s1}${s2}${round}`, s1, s2, result, totalMoves, totalTime, maxTP, maxTPMove });
+    results.push({ label: `${s1}${s2}${round}`, s1, s2, result, totalMoves, totalTime, maxTP, maxTPMove, timeWalls });
 }
 
 console.log('');
-console.log('| 对局 | 结果 | 手数 | 用时   | 峰值吞吐  | 手#  |');
-console.log('|------|------|------|--------|-----------|------|');
+console.log('| 对局 | 结果 | 手数 | 用时   | 峰值吞吐  | 手#  | 时间墙 |');
+console.log('|------|------|------|--------|-----------|------|--------|');
 
 for (const r of results) {
     const t = r.totalTime >= 1000 ? `${(r.totalTime / 1000).toFixed(1)}s` : `${r.totalTime}ms`;
-    console.log(`| ${r.label.padEnd(5)} | ${r.result} | ${String(r.totalMoves).padStart(3)} | ${t.padStart(6)} | ${String(r.maxTP).padStart(4)}n/ms | #${String(r.maxTPMove).padStart(2)} |`);
+    const tw = r.timeWalls > 0 ? `**${r.timeWalls}**` : '0';
+    console.log(`| ${r.label.padEnd(5)} | ${r.result} | ${String(r.totalMoves).padStart(3)} | ${t.padStart(6)} | ${String(r.maxTP).padStart(4)}n/ms | #${String(r.maxTPMove).padStart(2)} | ${tw.padStart(4)} |`);
 }
+
+// 汇总统计
+const totalTP = results.reduce((s, r) => s + r.maxTP, 0) / results.length;
+const totalTW = results.reduce((s, r) => s + r.timeWalls, 0);
+const maxTPAll = Math.max(...results.map(r => r.maxTP));
+const minTPAll = Math.min(...results.map(r => r.maxTP));
+console.log('');
+console.log(`峰值吞吐: 均值 ${Math.round(totalTP)}n/ms | 最高 ${maxTPAll}n/ms | 最低 ${minTPAll}n/ms`);
+console.log(`时间墙总次数: ${totalTW}`);
 
 const modes = ['D', 'M', 'N', 'E'];
 console.log('');

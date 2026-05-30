@@ -82,7 +82,7 @@ function log(msg) {
 }
 
 function getBoardLines(board) {
-    const symbols = { null: '·', 1: '●', 2: '○' };
+    const symbols = { 0: '·', 1: '●', 2: '○' };
     const b = board.map(v => symbols[v] || '?');
 
     return [
@@ -131,7 +131,7 @@ async function runBattle() {
 
     let moveNum = 0;
     let gameOver = false;
-    const MAX_MOVES = 200; // 防止无限循环
+    const MAX_MOVES = 500; // 防止无限循环
 
     while (!gameOver && moveNum < MAX_MOVES) {
         const state = Engine.getStateView();
