@@ -264,7 +264,7 @@ const Taunt = (() => {
 
         if (config.debug) {
             const summary = hits.map(h => `${h.id}:${h.w}`).join(' ; ');
-            console.log(`[Taunt] { ${summary} } → [${id}] → ${line}`);
+            console.log(`[Taunt] { ${summary} } → [${id}] → ${line}  hash=${E.getStateView().posHash}`);
         }
 
         return line;

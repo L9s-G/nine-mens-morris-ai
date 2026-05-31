@@ -506,7 +506,7 @@ const Engine = (() => {
                 p.piecesOnHand--;
                 p.piecesOnBoard++;
             } else {
-                state.board[from] = null;
+                state.board[from] = EMPTY;
                 state.board[to] = player;
                 state.posHash = u32(state.posHash + player * (pow3[to] - pow3[from]));
             }
