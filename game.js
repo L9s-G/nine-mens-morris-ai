@@ -644,9 +644,10 @@ const Game = (() => {
     ];
 
     const THEMES = [
-        { key: 'default',  label: '暗夜' },
-        { key: 'macaron',  label: '马卡龙' },
-        { key: 'cyber',    label: '赛博' }
+        { key: 'default',   label: '暗夜' },
+        { key: 'macaron',   label: '马卡龙' },
+        { key: 'cyber',     label: '赛博' },
+        { key: 'wasteland', label: '荒原' }
     ];
 
     const DEFAULT_SETTINGS = { difficulty: 'Normal', firstPlayer: 'opponent', theme: 'default', danmaku: true };

@@ -199,6 +199,69 @@
     --theme-radius: 12px;
 }
 
+/* ==================== 荒原主题 ==================== */
+
+[data-theme="wasteland"] {
+    /* ── 背景与面板：荒原尘土 ── */
+    --theme-bg: #2b1f1a;
+    --theme-surface: #3a2a23;
+    --theme-overlay: rgba(30, 20, 15, 0.6);
+
+    /* ── 文字：干裂灰 ── */
+    --theme-text: #f0e6d8;
+    --theme-text-secondary: #b8a89a;
+
+    /* ── 强调色：余晖金 ── */
+    --theme-accent: #ffb454;
+
+    /* ── 边框：铁锈系 ── */
+    --theme-border: #5a4033;
+    --theme-border-strong: #4a3328;
+
+    /* ── 交互态 ── */
+    --theme-hover: rgba(255, 180, 84, 0.12);
+    --theme-active: rgba(255, 180, 84, 0.22);
+
+    /* ── 棋盘：焦土木纹 ── */
+    --theme-board-face: #4a372d;
+    --theme-board-stroke: #6b4b3a;
+    --theme-board-line: #d89a5b;
+    --theme-board-hover: #5a4236;
+    --theme-board-highlight: #6b4b3a;
+
+    /* ── 棋子：骨白 vs 煤黑 ── */
+    --theme-piece-white: #f7f1e8;
+    --theme-piece-white-stroke: #e0d4c4;
+    --theme-piece-black: #2a1d18;
+    --theme-piece-black-stroke: #1a120f;
+    --theme-capture: #ff7a3d;
+    --theme-capture-glow: rgba(255, 122, 61, 0.45);
+    --theme-thinking: #ffb454;
+
+    /* ── 状态圆点 ── */
+    --theme-dot-white: #e8dfd4;
+    --theme-dot-black: #3a2a23;
+    --theme-dot-black-board: #5a4033;
+    --theme-dot-lost: #6b5a4d;
+
+    /* ── 气泡与弹幕 ── */
+    --theme-bubble: #3f2f27;
+    --theme-danmaku: #ffd9a3;
+
+    /* ── 阴影：干燥空气中的低散射 ── */
+    --theme-shadow-piece: rgba(60, 40, 30, 0.35);
+    --theme-shadow-piece-dark: rgba(0, 0, 0, 0.45);
+    --theme-highlight-bright: rgba(255, 240, 200, 0.9);
+    --theme-highlight-soft: rgba(255, 240, 200, 0.35);
+    --theme-shadow-ambient: rgba(0, 0, 0, 0.18);
+    --theme-shadow-board: rgba(0, 0, 0, 0.45);
+    --theme-shadow-danmaku: rgba(0, 0, 0, 0.7);
+    --theme-shadow-modal: rgba(0, 0, 0, 0.55);
+
+    /* ── 圆角：更硬朗 ── */
+    --theme-radius: 6px;
+}
+
 /* ==================== 赛博主题专属发光效果 ==================== */
 
 [data-theme="cyber"] #board-lines {
