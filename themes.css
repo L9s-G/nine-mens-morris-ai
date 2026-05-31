@@ -1,0 +1,230 @@
+/* ========================================================
+   Nine Men's Morris — 主题配色标准
+   ========================================================
+
+   第三方作者指南：
+   1. 复制下方 [data-theme="your-theme"] 块
+   2. 替换所有变量值即可创建新主题
+   3. 主题通过 game.js 中的 THEMES 数组注册
+   4. 可选：为主题添加专属 CSS 效果（参考末尾赛博 glow 示例）
+
+   ======================================================== */
+
+/* ==================== 默认主题：暗夜 ==================== */
+
+:root {
+    /* ── 背景与面板 ── */
+    --theme-bg: #1a1a2e;                        /* 页面主背景 */
+    --theme-surface: #16213e;                   /* 卡片/面板背景 */
+    --theme-overlay: rgba(0, 0, 0, 0.6);       /* 遮罩层 */
+
+    /* ── 文字 ── */
+    --theme-text: #e0e0e0;                      /* 主文字 */
+    --theme-text-secondary: #888;               /* 次要/弱化文字 */
+
+    /* ── 强调色 ── */
+    --theme-accent: #4fc3f7;                    /* 主强调色（按钮、选中态） */
+
+    /* ── 边框 ── */
+    --theme-border: #444;                       /* 普通边框 */
+    --theme-border-strong: #333;                /* 深色/强调边框 */
+
+    /* ── 交互态 ── */
+    --theme-hover: rgba(255, 255, 255, 0.08);   /* 悬停背景 */
+    --theme-active: rgba(255, 255, 255, 0.15);  /* 按下/激活背景 */
+
+    /* ── 棋盘 ── */
+    --theme-board-face: #e6cb9a;                /* 棋盘面板底色 */
+    --theme-board-stroke: #b8860b;              /* 棋盘外框描边 */
+    --theme-board-line: #8B7355;                /* 棋盘线路 */
+    --theme-board-hover: #e6cb9a;               /* 棋盘位置悬停 */
+    --theme-board-highlight: #e6cb9a;           /* 可落子高亮 */
+
+    /* ── 棋子 ── */
+    --theme-piece-white: #f0f0f0;               /* 白子填充 */
+    --theme-piece-white-stroke: #e0e0e0;        /* 白子描边 */
+    --theme-piece-black: #2d2d2d;               /* 黑子填充 */
+    --theme-piece-black-stroke: #222;           /* 黑子描边 */
+    --theme-capture: #ff8a80;                   /* 可吃子高亮 */
+    --theme-capture-glow: #f44336;              /* 可吃子发光 */
+    --theme-thinking: #81d4fa;                  /* AI 思考指示器 */
+
+    /* ── 状态圆点 ── */
+    --theme-dot-white: #f0f0f0;                 /* 白子手牌圆点 */
+    --theme-dot-black: #555;                    /* 黑子手牌圆点 */
+    --theme-dot-black-board: #888;              /* 黑子棋盘圆点 */
+    --theme-dot-lost: #555;                     /* 已吃棋子圆点 */
+
+    /* ── 气泡与弹幕 ── */
+    --theme-bubble: #2a2a4a;                    /* 聊天气泡背景 */
+    --theme-danmaku: #fff;                      /* 弹幕文字色 */
+
+    /* ── 阴影 ── */
+    --theme-shadow-piece: rgba(40, 30, 20, 0.3);       /* 棋子投影 */
+    --theme-shadow-piece-dark: rgba(0, 0, 0, 0.45);    /* 棋子深色投影 */
+    --theme-highlight-bright: rgba(255, 255, 255, 0.9); /* 棋子高光（亮） */
+    --theme-highlight-soft: rgba(255, 255, 255, 0.35);  /* 棋子高光（柔） */
+    --theme-shadow-ambient: rgba(0, 0, 0, 0.15);       /* 环境阴影 */
+    --theme-shadow-board: rgba(0, 0, 0, 0.4);          /* 棋盘阴影 */
+    --theme-shadow-danmaku: rgba(0, 0, 0, 0.7);        /* 弹幕文字阴影 */
+    --theme-shadow-modal: rgba(0, 0, 0, 0.5);          /* 弹窗阴影 */
+
+    /* ── 圆角 ── */
+    --theme-radius: 8px;                        /* 全局圆角半径 */
+}
+
+/* ==================== 马卡龙主题 ==================== */
+
+[data-theme="macaron"] {
+    /* ── 背景与面板：奶油白 ── */
+    --theme-bg: #f2f5f8;
+    --theme-surface: #ffffff;
+    --theme-overlay: rgba(44, 62, 80, 0.3);
+
+    /* ── 文字 ── */
+    --theme-text: #2c3e50;
+    --theme-text-secondary: #7f8c8d;
+
+    /* ── 强调色：轻熟粉 ── */
+    --theme-accent: #ff7597;
+
+    /* ── 边框 ── */
+    --theme-border: #e9ecef;
+    --theme-border-strong: #dee2e6;
+
+    /* ── 交互态 ── */
+    --theme-hover: rgba(255, 117, 151, 0.1);
+    --theme-active: rgba(255, 117, 151, 0.2);
+
+    /* ── 棋盘：薄荷冰沙 ── */
+    --theme-board-face: #eaf7f4;
+    --theme-board-stroke: #bfe3db;
+    --theme-board-line: #8ccfcf;
+    --theme-board-hover: #d2f0ea;
+    --theme-board-highlight: #ffe3d1;
+
+    /* ── 棋子：香草奶霜 vs 蓝莓慕斯 ── */
+    --theme-piece-white: #ffffff;
+    --theme-piece-white-stroke: #d0d7de;
+    --theme-piece-black: #5dade2;
+    --theme-piece-black-stroke: #3498db;
+    --theme-capture: #ff2a6d;
+    --theme-capture-glow: rgba(255, 42, 109, 0.4);
+    --theme-thinking: #ff7597;
+
+    /* ── 状态圆点 ── */
+    --theme-dot-white: #d5d5d5;
+    --theme-dot-black: #5dade2;
+    --theme-dot-black-board: #3498db;
+    --theme-dot-lost: #bdc3c7;
+
+    /* ── 气泡与弹幕 ── */
+    --theme-bubble: #f4eff7;
+    --theme-danmaku: #6c5ce7;
+
+    /* ── 阴影：同色系微弱 ── */
+    --theme-shadow-piece: rgba(165, 175, 185, 0.2);
+    --theme-shadow-piece-dark: rgba(52, 152, 219, 0.25);
+    --theme-highlight-bright: rgba(255, 255, 255, 1);
+    --theme-highlight-soft: rgba(255, 255, 255, 0.6);
+    --theme-shadow-ambient: rgba(0, 0, 0, 0.04);
+    --theme-shadow-board: rgba(165, 175, 185, 0.15);
+    --theme-shadow-danmaku: rgba(255, 255, 255, 0.9);
+    --theme-shadow-modal: rgba(44, 62, 80, 0.1);
+
+    /* ── 圆角 ── */
+    --theme-radius: 12px;
+}
+
+/* ==================== 赛博主题 ==================== */
+
+[data-theme="cyber"] {
+    /* ── 背景与面板：深邃暗夜 ── */
+    --theme-bg: #0b0c10;
+    --theme-surface: #1f2833;
+    --theme-overlay: rgba(11, 12, 16, 0.85);
+
+    /* ── 文字：紫青双色 ── */
+    --theme-text: #c5a3ff;
+    --theme-text-secondary: #66fcf1;
+
+    /* ── 强调色：霓虹粉 ── */
+    --theme-accent: #ff4081;
+
+    /* ── 边框 ── */
+    --theme-border: #3a4f5c;
+    --theme-border-strong: #2a3a44;
+
+    /* ── 交互态 ── */
+    --theme-hover: rgba(102, 252, 241, 0.1);
+    --theme-active: rgba(102, 252, 241, 0.2);
+
+    /* ── 棋盘：极光霓虹线 ── */
+    --theme-board-face: #121c24;
+    --theme-board-stroke: #1f2833;
+    --theme-board-line: #00ffcc;
+    --theme-board-hover: #424b55;
+    --theme-board-highlight: #424b55;
+
+    /* ── 棋子：量子奶白 vs 霓虹电蓝 ── */
+    --theme-piece-white: #ffffff;
+    --theme-piece-white-stroke: #00ffcc;
+    --theme-piece-black: #00e5ff;
+    --theme-piece-black-stroke: #0086b3;
+    --theme-capture: #ff0055;
+    --theme-capture-glow: #ff0055;
+    --theme-thinking: #66fcf1;
+
+    /* ── 状态圆点 ── */
+    --theme-dot-white: #ffffff;
+    --theme-dot-black: #00e5ff;
+    --theme-dot-black-board: #0086b3;
+    --theme-dot-lost: #414a4c;
+
+    /* ── 气泡与弹幕 ── */
+    --theme-bubble: #1a1528;
+    --theme-danmaku: #ffff00;
+
+    /* ── 阴影：霓虹发光 ── */
+    --theme-shadow-piece: rgba(255, 255, 255, 0.4);
+    --theme-shadow-piece-dark: rgba(0, 229, 255, 0.5);
+    --theme-highlight-bright: rgba(255, 255, 255, 0.8);
+    --theme-highlight-soft: rgba(0, 255, 204, 0.4);
+    --theme-shadow-ambient: rgba(0, 0, 0, 0.5);
+    --theme-shadow-board: rgba(0, 255, 204, 0.15);
+    --theme-shadow-danmaku: rgba(0, 0, 0, 0.9);
+    --theme-shadow-modal: rgba(0, 0, 0, 0.8);
+
+    /* ── 圆角 ── */
+    --theme-radius: 12px;
+}
+
+/* ==================== 赛博主题专属发光效果 ==================== */
+
+[data-theme="cyber"] #board-lines {
+    filter: drop-shadow(0 0 4px rgba(0, 255, 204, 0.6));
+}
+
+[data-theme="cyber"] .board-dot {
+    filter: drop-shadow(0 0 6px var(--theme-board-line));
+}
+
+[data-theme="cyber"] .piece-white {
+    filter:
+        drop-shadow(0 0 8px rgba(0, 255, 204, 0.5))
+        drop-shadow(2px 3px 4px rgba(0,0,0,0.7));
+}
+
+[data-theme="cyber"] .piece-black {
+    filter:
+        drop-shadow(0 0 10px rgba(0, 229, 255, 0.6))
+        drop-shadow(2px 3px 4px rgba(0,0,0,0.7));
+}
+
+[data-theme="cyber"] .dot-white.hand {
+    box-shadow: 0 0 8px rgba(255,255,255,0.6);
+}
+
+[data-theme="cyber"] .dot-black.hand {
+    box-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
+}

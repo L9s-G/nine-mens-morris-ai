@@ -1,7 +1,8 @@
-const CACHE_NAME = '9mm-v2.5.0';
+const CACHE_NAME = '9mm-v2.5.1';
 const ASSETS = [
     './',
     './index.html',
+    './themes.css',
     './style.css',
     './engine.js',
     './evaluator.js',
