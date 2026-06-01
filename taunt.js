@@ -21,6 +21,13 @@ const Taunt = (() => {
 
     // ==================== 上下文构建 ====================
 
+    /**
+     * 构建弹幕匹配上下文：从游戏状态提取阶段、棋子、磨坊威胁、机动性等信息。
+     * @param {object} state - Engine.getStateView() 返回的状态对象
+     * @param {number|null} move - 编码走法整数（走前为 null）
+     * @param {number} score - 当前局面分数
+     * @returns {object} 上下文对象，供谓词和规则匹配使用
+     */
     function buildContext(state, move = null, score = 0) {
         const aiData = state.playerAI;
         const oppData = state.playerOpponent;
@@ -46,14 +53,14 @@ const Taunt = (() => {
         };
     }
 
-    // ==================== 谓词 ====================
+    // ==================== 谓词（纯函数，返回 boolean）====================
 
-    // 走前/走后
+    // 走前/走后：根据是否已有走法区分
     const isPre = c => !c.move;
     const isPost = c => !!c.move;
     const captured = c => c.move && c.move.remove !== null;
 
-    // 阶段
+    // 阶段：AI 或对手所处的游戏阶段
     const placement = c => c.phase.ai === 'PLACEMENT';
     const moving = c => c.phase.ai === 'MOVING';
     const aiFlying = c => c.phase.ai === 'FLYING';
@@ -61,14 +68,17 @@ const Taunt = (() => {
     const ai4 = c => c.pieces.ai.onBoard === 4 && c.pieces.ai.onHand === 0;
     const opp4 = c => c.pieces.opponent.onBoard === 4 && c.pieces.opponent.onHand === 0;
 
-    // 分数段
+    // 分数段：基于 Evaluator.evaluate() 的分数区间
     const scoreWinning = c => c.score >= 2000;
     const scoreAhead = c => c.score >= 50;
     const scoreEven = c => c.score > -50 && c.score < 50;
     const scoreBehind = c => c.score <= -50;
     const scoreLosing = c => c.score <= -2000;
 
-    // 磨坊威胁
+    // 磨坊威胁：基于 Evaluator.analyzeMillsBoth() 的 mill 统计
+    // rollingForks: 滚动叉（成磨后自动形成新 2+1）
+    // hardNearMills: 对手无法拦截的即将成磨
+    // hardRollingForks: 对手完全无法阻止的滚动叉
     const oppThreatened = c => c.mills.opponent.rollingForks >= 1 || c.mills.opponent.hardNearMills >= 1;
     const aiThreatened = c => c.mills.ai.rollingForks >= 1 || c.mills.ai.hardNearMills >= 1;
     const oppHasHRF = c => c.mills.opponent.hardRollingForks >= 1;
@@ -266,8 +276,14 @@ const Taunt = (() => {
 
     // ==================== 公开接口 ====================
 
+    /** 配置弹幕系统。 */
     function configure(opts) { Object.assign(config, opts); }
 
+    /**
+     * 获取走前弹幕（AI 思考前）。
+     * @param {object} state - Engine.getStateView()
+     * @returns {{ line: string, ctx: object }} 台词 + 上下文（供走后复用）
+     */
     function getPreMessage(state) {
         const score = EV.evaluate(0, null);
         const ctx = buildContext(state, null, score);
@@ -275,6 +291,14 @@ const Taunt = (() => {
         return { line, ctx };
     }
 
+    /**
+     * 获取走后弹幕（AI 走棋后）。
+     * @param {object} state - Engine.getStateView()
+     * @param {number} move - 编码走法整数
+     * @param {object} preCtx - 走前上下文（getPreMessage 返回的 ctx）
+     * @param {number} score - 搜索返回的走法分数
+     * @returns {string} 台词
+     */
     function getPostMessage(state, move, preCtx, score) {
         const ctx = buildContext(state, move, score);
         ctx.phaseBefore = preCtx.phase;

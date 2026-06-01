@@ -27,6 +27,7 @@ const Game = (() => {
     const GRID_STEPS = 6;
     const CELL = BOARD_PX / GRID_STEPS; // 83.333...
 
+    /** 棋盘位置 → SVG 坐标（viewBox 600×600）。 */
     function posToSvg(pos) {
         const [c, r] = GRID[pos];
         return { x: MARGIN + c * CELL, y: MARGIN + r * CELL };
@@ -45,6 +46,7 @@ const Game = (() => {
         return el;
     }
 
+    /** 初始化 SVG 棋盘：创建 24 个交点标记、交互区域、调试编号。 */
     function initBoard() {
         svgDots = document.getElementById('board-dots');           // 棋盘交点标记（24 个黑点）
         svgPositions = document.getElementById('board-positions'); // 点击热区（透明圆，捕获用户交互）
@@ -88,6 +90,7 @@ const Game = (() => {
         }
     }
 
+    /** 从引擎状态重绘所有棋子（bitboard → SVG circles）。 */
     function renderBoard() {
         const own = E.getOwn();
         const opp = E.getOpp();
@@ -149,6 +152,7 @@ const Game = (() => {
 
     // ==================== 交互逻辑 ====================
 
+    /** 主点击处理：根据游戏状态分派到放置/吃子/走子处理器。 */
     function onPositionClick(pos) {
         if (isAIThinking) return;
         if (E.getStateView().currentPlayer !== E.TYPE_OPPONENT) return;
@@ -229,6 +233,11 @@ const Game = (() => {
         renderBoard();
     }
 
+    /**
+     * 执行走法动画 + 引擎状态更新。
+     * 放置/走子/飞行：棋子滑动动画（250ms）；吃子：闪烁 + 缩小消失（600ms）。
+     * @param {number} encodedMove - encodeMove 生成的 18 位编码整数
+     */
     async function animateAndExecute(encodedMove) {
         // 解码整数 move 为对象（仅 UI 层需要属性访问）
         const move = E.decodeMove(encodedMove);
@@ -277,6 +286,10 @@ const Game = (() => {
         renderBoard();
     }
 
+    /**
+     * 玩家走法完整流程：动画 → 检查终局 → 处理吃子 → 触发 AI 回合。
+     * @param {object} move - decodeMove 解码后的走法对象
+     */
     async function executePlayerMove(move) {
         // move 是 decoded 对象，需要重新编码为整数传给 animateAndExecute
         await animateAndExecute(E.encodeMove(move.player, E.TYPE_ENCODE[move.type], move.from, move.to, move.remove));
@@ -308,6 +321,10 @@ const Game = (() => {
         await doAITurn();
     }
 
+    /**
+     * AI 吃子决策：遍历可吃子走法，用静态评估选最优吃子。
+     * 成磨后 AI 必须吃子，此处选择吃哪个。
+     */
     async function handleAICapture() {
         await sleep(300);
         const captureMoves = E.generateLegalMoves(E.TYPE_AI);
@@ -323,6 +340,10 @@ const Game = (() => {
         updateStatus();
     }
 
+    /**
+     * AI 回合完整流程：思考状态 → 走前弹幕 → 搜索 → 动画 → debug 信息 → 走后弹幕 → 处理吃子 → 更新 UI。
+     * 整个过程异步执行，期间 UI 显示思考状态，玩家无法操作。
+     */
     async function doAITurn() {
         if (E.isGameOver()) return;
 
@@ -443,6 +464,7 @@ const Game = (() => {
         document.getElementById('message-display').textContent = text ? ' - ' + text : '';
     }
 
+    /** 生成文本格式的对战记录（走法列表 + 统计数据），用于 Debug 模式复制。 */
     function exportGameRecord() {
         const state = E.getStateView();
         const history = state.moveHistory;
@@ -785,6 +807,7 @@ const Game = (() => {
         if (bubbleList) bubbleList.innerHTML = '';
     }
 
+    /** 开始新游戏：清除存档、重置 UI、处理 AI 先手情况。 */
     function newGame() {
         clearGameFen();
         saveSettings();
@@ -801,6 +824,10 @@ const Game = (() => {
         }
     }
 
+    /**
+     * 应用入口（DOMContentLoaded 调用）。
+     * 初始化棋盘 SVG、加载设置、绑定事件、恢复存档、启动游戏。
+     */
     function init() {
         initBoard();
         loadSettings();

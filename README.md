@@ -133,7 +133,7 @@ posOpp[writeIdx & 31] = opp;
 // 检测：遍历缓冲区，比较 (own, opp) 出现 ≥3 次 → 判和
 ```
 
-`Float64Array` 连续内存，不触发 GC，适合深度搜索的高频调用。
+`Uint32Array` 连续内存，不触发 GC，适合深度搜索的高频调用。
 
 ## AI 引擎
 
@@ -161,6 +161,7 @@ FEN 序列化采用 own/opp 双整数 + 十六进制元数据的紧凑编码。
 - **成磨不消耗深度**：形成磨坊后同一玩家继续吃子，不计入搜索深度（吃子是强制动作）
 - **同分洗牌**：每层迭代完成后，同分走法段内 Fisher-Yates 打乱，避免搜索路径固化
 - **搜索无拷贝**：搜索引擎直接操作 Engine 单例状态，`makeMove`/`undoMove` 原地修改，零深拷贝开销
+- **走法整数编码**：走法打包为 18 位整数（`from | to<<5 | remove<<10 | type<<15 | player<<17`），消除每节点 10-30 个对象分配
 
 ### 难度配置
 
@@ -328,12 +329,15 @@ node test/analyze.js
 - **零依赖**：纯 Vanilla JS，无构建步骤，无 CDN
 - **棋盘表示**：双 Uint32 位掩码（`own` / `opp`），24 位对应 24 个交点
 - **棋盘拓扑**：预计算位掩码表（16 条 mill 线 + 24 个邻居 + mill-without 辅助表）
-- **走法生成**：位扫描遍历棋子/空位（`ctz` + `bits &= bits - 1`），无 24 次循环
+- **走法编码**：18 位整数打包（from 5 位 + to 5 位 + remove 5 位 + type 2 位 + player 1 位），零对象分配
+- **走法生成**：位扫描遍历棋子/空位（`ctz` + `bits &= bits - 1`），无 24 次循环；无 sort（写入顺序即分数降序）
 - **成磨检测**：`(bits & MILL_MASKS[i]) === MILL_MASKS[i]`，一次位与 + 一次比较
 - **机动性计算**：`popcount(NEIGHBOR_MASKS[pos] & emptyBits)`，PLACEMENT/FLYING 阶段直接 `popcount(empty)`
-- **三次重复检测**：双 Float64Array 环形缓冲区直接存储 own/opp 原始值，零 hash 计算
+- **评估零分配**：Set → 位掩码去重，Math.pow → 查表，getPhase 结果缓存
+- **三次重复检测**：双 Uint32Array 环形缓冲区直接存储 own/opp 原始值，零 hash 计算
 - **搜索无拷贝**：搜索引擎直接操作 Engine 单例状态，`makeMove`/`undoMove` 原地修改，零深拷贝开销
-- **GC 安全**：环形缓冲区为连续内存（Float64Array），不触发垃圾回收
+- **GC 安全**：环形缓冲区为连续内存（Uint32Array），不触发垃圾回收
+- **性能**：Demon 模式 20 秒搜索 51M 节点（移动端），吞吐 ~2550 n/ms
 
 ## 快速开始
 

@@ -13,6 +13,7 @@ const AI = (() => {
     let worker = null;
     let workerReady = false;
 
+    /** 初始化 Web Worker，设置消息/错误回调，管理 pending Promise 模式。 */
     function initWorker() {
         if (worker) return;
 
@@ -51,6 +52,14 @@ const AI = (() => {
     let pendingResolve = null;
     let pendingReject = null;
 
+    /**
+     * 通过 Web Worker 执行搜索（异步）。
+     * Worker 中运行 engine.js + evaluator.js + searcher.js，共享单一源码。
+     * @param {number} player - 搜索方（TYPE_OPPONENT 或 TYPE_AI）
+     * @param {number} depth - 搜索深度
+     * @param {number} [timeLimit] - 时间墙（毫秒）
+     * @returns {Promise<{ ranked: Array, stats: object }>}
+     */
     function searchWithWorker(player, depth, timeLimit) {
         return new Promise((resolve, reject) => {
             if (!worker) {
@@ -67,6 +76,12 @@ const AI = (() => {
 
     // ==================== 难度配置 ====================
 
+    /**
+     * 每级难度的搜索参数。
+     * depth: 可为数字（全阶段统一）或按阶段分别设置 { PLACEMENT, MOVING, FLYING }
+     * temperature: 可为数字或按阶段分别设置；0=确定性（Demon），1=高随机（Eco）
+     * topK: 加权随机选择的候选数截断
+     */
     const PerformanceConfig = {
         Eco:    { depth: { PLACEMENT: 1, MOVING: 2, FLYING: 2 }, temperature: 1,   topK: 5, label: '菜鸟' },
         Normal: { depth: { PLACEMENT: 2, MOVING: 3, FLYING: 3 }, temperature: 0.8, topK: 4, label: '老手' },
@@ -74,11 +89,23 @@ const AI = (() => {
         Demon:  { depth: { PLACEMENT: 5, MOVING: 8, FLYING: 8 }, temperature: 0, topK: 1, label: '恶魔' },
     };
 
+    /**
+     * 解析多态温度配置（数字或按阶段对象）。
+     * @param {number|object} tempConfig - 温度值或 { PLACEMENT, MOVING, FLYING }
+     * @param {string} phase - 当前阶段
+     * @returns {number}
+     */
     function resolveTemperature(tempConfig, phase) {
         if (typeof tempConfig === 'number') return tempConfig;
         return tempConfig[phase] ?? PerformanceConfig.Normal.temperature;
     }
 
+    /**
+     * 解析多态深度配置（数字或按阶段对象）。
+     * @param {number|object} depthConfig - 深度值或 { PLACEMENT, MOVING, FLYING }
+     * @param {string} phase - 当前阶段
+     * @returns {number}
+     */
     function resolveDepth(depthConfig, phase) {
         if (typeof depthConfig === 'number') return depthConfig;
         return depthConfig[phase] ?? PerformanceConfig.Normal.depth.MOVING;
@@ -86,22 +113,31 @@ const AI = (() => {
 
     let currentConfig = PerformanceConfig.Normal;
 
+    /**
+     * 设置 AI 难度模式。
+     * @param {string} mode - 'Eco' | 'Normal' | 'Master' | 'Demon'
+     */
     function setPerformanceMode(mode) {
         if (PerformanceConfig[mode]) currentConfig = PerformanceConfig[mode];
     }
 
     // ==================== Debug 模式 ====================
 
-    const DEBUG_TIME_LIMIT = 20000; // 20 秒，测试更深搜索
+    const DEBUG_TIME_LIMIT = 20000; // Debug 模式 20 秒时间墙
     let debugMode = false;
 
+    /** 开启/关闭 Debug 模式（更长时间墙 + 性能指标弹幕）。 */
     function setDebugMode(on) { debugMode = on; }
 
     // ==================== 温度随机选择 ====================
 
     /**
-     * Top-k 截断 + 指数分布随机选择（权重乘以分数）
-     * 分差大时高分几乎确定，分差接近时保留随机性
+     * Top-k 截断 + 指数分布随机选择。
+     * 分差大时高分几乎确定（temperature→0），分差接近时保留随机性。
+     * @param {Array<{move: number, score: number}>} sorted - 按分数降序的走法列表
+     * @param {number} temperature - 温度（0=确定性选 top-1，越大越随机）
+     * @param {number} topK - 候选截断数
+     * @returns {{ move: number, score: number }|null}
      */
     function pickWithWeightedRandom(sorted, temperature, topK) {
         if (sorted.length === 0) return null;
@@ -143,12 +179,14 @@ const AI = (() => {
 
         let temp = resolveTemperature(currentConfig.temperature, phase);
 
-        // PLACEMENT 前期提高随机性：前 2 子 3x，3-6 子渐降，7-9 子原值
+        // PLACEMENT 前期提高随机性：手持棋子越多，温度越高
+        // index = piecesOnHand: [0-3]=1x, 4=1.2x, 5=1.5x, 6=2x, 7-9=3x
+        // 开局前几子位置对称性高，提高随机性增加对局多样性
         if (phase === E.PHASE_PLACEMENT) {
             const p = player === E.TYPE_OPPONENT
                 ? E.getStateView().playerOpponent
                 : E.getStateView().playerAI;
-            const MULTIPLIERS = [1, 1, 1, 1, 1.2, 1.5, 2, 3, 3, 3]; // index = piecesOnHand
+            const MULTIPLIERS = [1, 1, 1, 1, 1.2, 1.5, 2, 3, 3, 3];
             temp *= MULTIPLIERS[p.piecesOnHand] || 1;
         }
 

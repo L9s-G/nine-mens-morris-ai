@@ -254,7 +254,15 @@ const Engine = (() => {
     const MT_PLACE = 0, MT_MOVE = 1, MT_FLY = 2, MT_REMOVE = 3;
     const MOVE_NONE = 31;  // remove 字段的 null 等价
 
-    /** 编码：将走法字段打包为 18 位整数。 */
+    /**
+     * 编码：将走法字段打包为 18 位整数。
+     * @param {number} player - TYPE_OPPONENT(1) 或 TYPE_AI(2)
+     * @param {number} type - MT_PLACE(0)/MT_MOVE(1)/MT_FLY(2)/MT_REMOVE(3)
+     * @param {number} from - 起点位置（0-23，-1 表示无）
+     * @param {number} to - 终点位置（0-23，-1 表示无）
+     * @param {number|null} remove - 被吃子位置（0-23，null 表示无吃子）
+     * @returns {number} 18 位编码整数
+     */
     function encodeMove(player, type, from, to, remove) {
         const f = from < 0 ? MOVE_NONE : from;
         const t = to < 0 ? MOVE_NONE : to;
@@ -262,7 +270,11 @@ const Engine = (() => {
         return f | (t << 5) | (r << 10) | (type << 15) | ((player === TYPE_AI ? 1 : 0) << 17);
     }
 
-    /** 解码：将 18 位整数还原为走法对象（仅 game.js 等外部调用方使用）。 */
+    /**
+     * 解码：将 18 位整数还原为走法对象（仅 game.js 等外部调用方使用）。
+     * @param {number} m - encodeMove 生成的 18 位编码整数
+     * @returns {{ from: number, to: number, remove: number|null, type: string, player: number }}
+     */
     function decodeMove(m) {
         const r = (m >> 10) & 0x1F;
         return {
@@ -363,7 +375,13 @@ const Engine = (() => {
 
     // ==================== 核心接口 ====================
 
-    /** 初始化游戏，重置所有状态。 */
+    /**
+     * 初始化游戏，重置所有状态。
+     * @param {object} [config] - 配置项
+     * @param {number} [config.firstPlayer=TYPE_OPPONENT] - 先手方
+     * @param {number} [config.opponentHand=9] - 对手手持棋子数
+     * @param {number} [config.aiHand=9] - AI 手持棋子数
+     */
     function init(config = {}) {
         state = createInitialState(config);
         pushState();  // 初始局面推入重复检测窗口

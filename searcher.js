@@ -105,7 +105,9 @@ const Searcher = (() => {
         if (moves.length === 0) return null;
 
         let completedDepth = 0;
-        let bestScores = []; // 每层迭代的结果，排序后复用于下一层走法顺序
+        // bestScores: 上一层迭代的走法-分数对，按分数降序排列。
+        // 下一层复用此顺序作为走法排列，实现迭代加深的走法排序优化。
+        let bestScores = [];
 
         for (let d = 1; d <= maxDepth; d++) {
             if (Date.now() - startTime > timeLimit) break;
@@ -115,6 +117,7 @@ const Searcher = (() => {
             for (let i = 0; i < moves.length; i++) {
                 if (timedOut) break;
 
+                // 走法排序：首轮用 generateLegalMoves 原序，后续用上一轮的分数排序
                 const move = bestScores.length > 0 ? bestScores[i].move : moves[i];
                 const formedMill = E.makeMove(move);
                 const ctx = { player, move, formedMill };
@@ -128,11 +131,12 @@ const Searcher = (() => {
                 results.push({ move, score });
             }
 
-            // 本层完整完成 → 排序（同分打乱），供下一层用
+            // 本层完整完成 → 排序，供下一层走法排序用
             if (!timedOut && results.length === moves.length) {
                 completedDepth = d;
                 results.sort((a, b) => b.score - a.score);
-                // 同分段内 Fisher-Yates 打乱
+                // 同分段内 Fisher-Yates 打乱：对称局面中多个走法分数相同，
+                // 打乱避免 AI 每次走同一个位置，增加对局多样性
                 for (let j = 0; j < results.length; ) {
                     let k = j + 1;
                     while (k < results.length && results[k].score === results[j].score) k++;

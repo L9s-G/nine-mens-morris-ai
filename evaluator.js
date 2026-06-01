@@ -203,13 +203,18 @@ const Evaluator = (() => {
     const SCORE_LOSE = -10000;
 
     const WEIGHTS = {
-        capture_ge4: 150,
-        capture_fly: 200,
-        nearMill: 10,
-        hardNearMill: 20,
-        rollingFork: 40,
-        hardRollingFork: 80,
-        mobility: 150,
+        // ── 吃子价值（非线性，取决于对手剩余子数）──
+        capture_ge4: 150,       // 对手剩余 ≥4 子，吃子降低对手机动性
+        capture_fly: 200,       // 飞行转折期（对手 3-4 子）连续吃子机会
+
+        // ── Mill 威胁（吃子胜利条件）──
+        nearMill: 10,           // 2+1 可达（最弱威胁）
+        hardNearMill: 20,       // 2+1 对手不可达（无法拦截）
+        rollingFork: 40,        // 滚动叉：成磨后自动形成新的 2+1（连续吃子链）
+        hardRollingFork: 80,    // 滚动叉 + 对手不可达（最强战术）
+
+        // ── 机动性 ──
+        mobility: 150,          // 半衰递减：weight × 0.5^(mob-1)
     };
 
     // 机动性半衰表：HALF_DECAY[n] = 0.5^(n-1)，n=0..16
@@ -258,20 +263,25 @@ const Evaluator = (() => {
             if (oppPieces >= 4) score += sign * WEIGHTS.capture_ge4 * w;
         }
 
-        // ── Mill 威胁（传入缓存的阶段，返回 empty 供后续复用）──
+        // ── Mill 威胁（差值比较：(ai>opp) - (ai<opp) = +1/0/-1 三态 signum）──
         const { ai: aiMills, opp: oppMills, empty } = analyzeMillsBoth(aiPhase, oppPhase);
 
-        score += WEIGHTS.nearMill * w * ((aiMills.nearMills > oppMills.nearMills) - (aiMills.nearMills < oppMills.nearMills));
-        score += WEIGHTS.hardNearMill * w * ((aiMills.hardNearMills > oppMills.hardNearMills) - (aiMills.hardNearMills < oppMills.hardNearMills));
-        score += WEIGHTS.rollingFork * w * ((aiMills.rollingForks > oppMills.rollingForks) - (aiMills.rollingForks < oppMills.rollingForks));
-        score += WEIGHTS.hardRollingFork * w * ((aiMills.hardRollingForks > oppMills.hardRollingForks) - (aiMills.hardRollingForks < oppMills.hardRollingForks));
+        const sign = (a, b) => (a > b) - (a < b);  // signum：+1/0/-1
+        score += WEIGHTS.nearMill * w * sign(aiMills.nearMills, oppMills.nearMills);
+        score += WEIGHTS.hardNearMill * w * sign(aiMills.hardNearMills, oppMills.hardNearMills);
+        score += WEIGHTS.rollingFork * w * sign(aiMills.rollingForks, oppMills.rollingForks);
+        score += WEIGHTS.hardRollingFork * w * sign(aiMills.hardRollingForks, oppMills.hardRollingForks);
 
-        // ── 飞行转折期 ──
+        // ── 飞行转折期吃子策略 ──
+        // 对手即将进入飞行阶段（3-4 子）时，AI 有多个 nearMill 可以连续吃子，
+        // 在对手获得飞行能力前将其消灭
         const oppTotal = state.playerOpponent.piecesOnBoard + state.playerOpponent.piecesOnHand;
         if (oppTotal === 3 && aiMills.nearMills >= 2) score += WEIGHTS.capture_fly * w;
         if (oppTotal === 4 && aiMills.nearMills >= 3) score += WEIGHTS.capture_fly * w;
 
-        // ── 机动性（复用 empty 和 phase，查表替代 Math.pow）──
+        // ── 机动性：MOVING 阶段可用空位数 ──
+        // 对手机动性高 → 加分（对手选择多）；AI 机动性高 → 减分（AI 选择多）
+        // 半衰递减：mob=1 满权重，mob=5 减半四次，mob=10 可忽略
         if (oppPhase === E.PHASE_MOVING) {
             const mob = countMobility(E.TYPE_OPPONENT, oppPhase, empty);
             score += Math.round(WEIGHTS.mobility * w * HALF_DECAY[mob]);
@@ -286,7 +296,11 @@ const Evaluator = (() => {
 
     // ==================== 公开接口 ====================
 
-    /** 单玩家 mill 统计（从 analyzeMillsBoth 结果中提取）。 */
+    /**
+     * 单玩家 mill 统计（从 analyzeMillsBoth 结果中提取）。
+     * @param {number} player - TYPE_AI 或 TYPE_OPPONENT
+     * @returns {{ nearMills: number, hardNearMills: number, rollingForks: number, hardRollingForks: number }}
+     */
     function analyzeMills(player) {
         const aiPhase = E.getPhase(E.TYPE_AI);
         const oppPhase = E.getPhase(E.TYPE_OPPONENT);
