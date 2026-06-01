@@ -96,7 +96,7 @@ empty: ~(own | opp) & 0xFFFFFF  ← 空位位掩码
 
 | 表 | 数量 | 用途 |
 |----|------|------|
-| `MILL_MASKS` | 16 | 每条磨坊线的 3-bit 掩码 |
+| `MILL_MASKS` | 16 | 每条磨坊线的 24 位掩码（3 位置置 1） |
 | `NEIGHBOR_MASKS` | 24 | 每个位置的邻居位掩码 |
 | `MILL_WITHOUT` | 24×2 | 每位置 mill 线去掉自身后的 2-bit 掩码 |
 | `POSITION_MILLS` | 24 | 每个位置属于哪 2 条 mill 线 |
