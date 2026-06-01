@@ -316,9 +316,9 @@ const Engine = (() => {
         return s;
     }
 
-    /** 获取状态视图（只读，返回内部引用，board 属性与 own/opp 同步） */
+    /** 获取状态视图（只读，返回内部引用）
+     * 注意：不自动同步 board[] — 需要 board 时请调用 getBoard() 或 syncBoardFromBits() */
     function getStateView() {
-        syncBoardFromBits();
         return state;
     }
 
@@ -737,7 +737,8 @@ const Engine = (() => {
         popcount,
         u32,
 
-        // ── 同步函数（供测试使用）──
+        // ── 同步函数 ──
         syncBitsFromBoard,
+        syncBoardFromBits,
     };
 })();
