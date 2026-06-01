@@ -348,7 +348,7 @@ const Game = (() => {
             const { depth, targetDepth, elapsed, nodeCount, topK, temperature } = result.stats;
             const topN = result.allScores.slice(0, topK);
             const debugText = topN.map((s) => {
-                const m = s.move;
+                const m = E.decodeMove(s.move);
                 const desc = m.type === 'place' ? `→${m.to}`
                     : m.type === 'remove' ? `×${m.remove}`
                     : m.type === 'fly' ? `${m.from}✈${m.to}`
@@ -472,14 +472,16 @@ const Game = (() => {
 
         // 走法列表
         for (let i = 0; i < history.length; i++) {
-            const m = history[i];
+            const entry = history[i];
+            const m = E.decodeMove(entry.move);
             const num = String(i + 1).padStart(3);
             const name = labelOf(m.player);
 
             // 检测成行：当前非 remove 步，下一步是同玩家的 remove
             const next = history[i + 1];
-            const formsMill = m.type !== 'remove' && next
-                && next.player === m.player && next.type === 'remove';
+            const nextM = next ? E.decodeMove(next.move) : null;
+            const formsMill = m.type !== 'remove' && nextM
+                && nextM.player === m.player && nextM.type === 'remove';
 
             let desc = '';
             switch (m.type) {
@@ -493,7 +495,7 @@ const Game = (() => {
                     desc = `${m.from}⇒${m.to}`;
                     break;
                 case 'remove':
-                    desc = `吃 ${labelOf(m.removedFrom)}@${m.remove}`;
+                    desc = `吃 ${labelOf(entry.removedFrom)}@${m.remove}`;
                     break;
             }
 

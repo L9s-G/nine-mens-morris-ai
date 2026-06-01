@@ -269,7 +269,7 @@ const Engine = (() => {
             from:   m & 0x1F,
             to:     (m >> 5) & 0x1F,
             remove: r === MOVE_NONE ? null : r,
-            type:   (m >> 15) & 3,
+            type:   TYPE_DECODE[(m >> 15) & 3],  // 返回字符串：'place'/'move'/'fly'/'remove'
             player: (m >> 17) & 1 ? TYPE_AI : TYPE_OPPONENT,
         };
     }
