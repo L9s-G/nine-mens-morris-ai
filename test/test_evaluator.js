@@ -39,20 +39,18 @@ function section(name) { console.log(`\n--- ${name} ---`); }
 function setupBoard(config) {
     E.init({ opponentHand: 0, aiHand: 0, ...config.init });
     const st = E.getStateView();
+    let own = 0, opp = 0;
     if (config.opp) {
-        for (const pos of config.opp) {
-            st.board[pos] = E.TYPE_OPPONENT;
-        }
+        for (const pos of config.opp) opp |= (1 << pos);
         st.playerOpponent.piecesOnBoard = config.opp.length;
     }
     if (config.ai) {
-        for (const pos of config.ai) {
-            st.board[pos] = E.TYPE_AI;
-        }
+        for (const pos of config.ai) own |= (1 << pos);
         st.playerAI.piecesOnBoard = config.ai.length;
     }
+    st.own = own;
+    st.opp = opp;
     if (config.currentPlayer) st.currentPlayer = config.currentPlayer;
-    E.syncBitsFromBoard();  // board → own/opp 同步
     return st;
 }
 
@@ -138,14 +136,12 @@ section('analyzeMillsBoth');
 (() => {
     E.init({ opponentHand: 3, aiHand: 3 });
     const st = E.getStateView();
-    // 放 2+1 的 AI
-    st.board[0] = E.TYPE_AI; st.board[1] = E.TYPE_AI;
-    st.board[21] = E.TYPE_OPPONENT; st.board[22] = E.TYPE_OPPONENT;
+    st.own = (1 << 0) | (1 << 1);    // AI at 0, 1
+    st.opp = (1 << 21) | (1 << 22);  // OPP at 21, 22
     st.playerAI.piecesOnBoard = 2;
     st.playerOpponent.piecesOnBoard = 2;
 
     const r = EV.analyzeMillsBoth();
-    // placement 阶段：nearMills >= 1 时 hardNearMills = max(0, nearMills - 1)
     if (r.ai.nearMills >= 1) {
         assertEq(r.ai.hardNearMills, Math.max(0, r.ai.nearMills - 1), 'placement: hardNearMills = nearMills - 1');
     }
@@ -168,10 +164,10 @@ section('countMobility');
 (() => {
     E.init({ opponentHand: 3, aiHand: 3 });
     const st = E.getStateView();
-    st.board[0] = E.TYPE_OPPONENT; st.board[1] = E.TYPE_AI;
+    st.opp = (1 << 0);  // OPP at 0
+    st.own = (1 << 1);  // AI at 1
     st.playerOpponent.piecesOnBoard = 1;
     st.playerAI.piecesOnBoard = 1;
-    E.syncBitsFromBoard();
 
     const mob = EV.countMobility(E.TYPE_OPPONENT);
     assertEq(mob, 22, 'PLACEMENT: mobility = empty count = 22');

@@ -12,7 +12,6 @@ const Evaluator = (() => {
     const MILL_MASKS = E.MILL_MASKS;
     const NEIGHBOR_MASKS = E.NEIGHBOR_MASKS;
     const POSITION_MILLS = E.POSITION_MILLS;
-    const MILLS = E.MILLS;
     const ctz = E.ctz;
     const popcount = E.popcount;
     const BOARD_MASK = 0xFFFFFF;

@@ -81,10 +81,13 @@ function log(msg) {
     }
 }
 
-function getBoardLines(board) {
-    const symbols = { 0: '·', 1: '●', 2: '○' };
-    const b = board.map(v => symbols[v] || '?');
-
+function getBoardLines() {
+    const own = Engine.getOwn();
+    const opp = Engine.getOpp();
+    const b = [];
+    for (let i = 0; i < 24; i++) {
+        b[i] = (own >> i) & 1 ? '○' : (opp >> i) & 1 ? '●' : '·';
+    }
     return [
         `${b[0]}-----${b[1]}-----${b[2]}`,
         `| ${b[3]}---${b[4]}---${b[5]} |`,
@@ -162,7 +165,7 @@ async function runBattle() {
 
         // 日志函数
         function logMove(num, label, move, score, depth, targetDepth, ms, nodes) {
-            const bLines = getBoardLines(Engine.getBoard());
+            const bLines = getBoardLines();
             const st = Engine.getStateView();
             const o = st.playerOpponent, a = st.playerAI;
             const tp = ms > 0 ? Math.round(nodes / ms) : 0;

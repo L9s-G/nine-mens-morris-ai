@@ -89,26 +89,29 @@ const Game = (() => {
     }
 
     function renderBoard() {
-        const board = E.getBoard();
+        const own = E.getOwn();
+        const opp = E.getOpp();
 
         // 清空棋子层
         svgPieces.innerHTML = '';
 
         // 绘制棋子
         for (let i = 0; i < BOARD_SIZE; i++) {
-            if (board[i] === E.EMPTY) continue;
+            const isOwn = (own >> i) & 1;
+            const isOpp = (opp >> i) & 1;
+            if (!isOwn && !isOpp) continue;
             const { x, y } = posToSvg(i);
-            const isWhite = board[i] === E.TYPE_OPPONENT;
             const circle = createSvgElement('circle', {
                 cx: x, cy: y, r: 22,
-                class: `piece ${isWhite ? 'piece-white' : 'piece-black'}`,
+                class: `piece ${isOpp ? 'piece-white' : 'piece-black'}`,
                 'data-pos': i
             });
 
             // 选中状态
             if (selectedPos === i) circle.classList.add('selected');
-            // 可吃子状态
-            if (legalTargets.includes(i) && board[i] !== currentLegalPlayer) circle.classList.add('capture');
+            // 可吃子状态（当前合法玩家 ≠ 该棋子归属 → 可吃）
+            const isPlayerPiece = isOpp ? currentLegalPlayer === E.TYPE_OPPONENT : currentLegalPlayer === E.TYPE_AI;
+            if (legalTargets.includes(i) && !isPlayerPiece) circle.classList.add('capture');
 
             svgPieces.appendChild(circle);
         }
@@ -121,11 +124,10 @@ const Game = (() => {
         svgHighlights.innerHTML = '';
         if (legalTargets.length === 0) return;
 
-        const board = E.getBoard();
+        const occupied = E.getOwn() | E.getOpp();
         for (const target of legalTargets) {
             // 吃子目标由棋子 .capture 样式处理，此处只画空位高亮
-            const isCaptureTarget = board[target] !== E.EMPTY;
-            if (isCaptureTarget) continue;
+            if ((occupied >> target) & 1) continue;
 
             const { x, y } = posToSvg(target);
             const circle = createSvgElement('circle', {
@@ -181,7 +183,7 @@ const Game = (() => {
     }
 
     function handleMoveClick(pos) {
-        const board = E.getBoard();
+        const isOppPiece = (E.getOpp() >> pos) & 1;
 
         // 已选中棋子 → 尝试移动
         if (selectedPos !== null) {
@@ -191,7 +193,7 @@ const Game = (() => {
                 return;
             }
             // 点击自己的其他棋子 → 切换选中
-            if (board[pos] === E.TYPE_OPPONENT) {
+            if (isOppPiece) {
                 selectPiece(pos);
                 return;
             }
@@ -201,7 +203,7 @@ const Game = (() => {
         }
 
         // 未选中 → 选中自己的棋子
-        if (board[pos] === E.TYPE_OPPONENT) {
+        if (isOppPiece) {
             selectPiece(pos);
         }
     }
