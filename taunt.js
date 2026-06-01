@@ -261,12 +261,6 @@ const Taunt = (() => {
             line = lines[Math.floor(Math.random() * lines.length)];
         }
         lastLine = line;
-
-        if (config.debug) {
-            const summary = hits.map(h => `${h.id}:${h.w}`).join(' ; ');
-            console.log(`[Taunt] { ${summary} } → [${id}] → ${line}  own=${E.getOwn()} opp=${E.getOpp()}`);
-        }
-
         return line;
     }
 

@@ -329,6 +329,9 @@ const Game = (() => {
         setThinking(true);
         playerMoves = [];
 
+        // 走前：hash
+        if (debugMode) showAILineRaw(`{${E.getOwn()} ${E.getOpp()}}`);
+
         // 走前弹幕
         const preMove = Taunt.getPreMessage(Engine.getStateView());
         showAILine(preMove.line);
@@ -343,13 +346,13 @@ const Game = (() => {
 
         await animateAndExecute(result.move);
 
-        // debug 信息（仅性能指标）
+        // 走后：hash + 性能指标
         if (debugMode) {
             const { depth, targetDepth, elapsed, nodeCount, temperature } = result.stats;
             const timeStr = elapsed >= 1000 ? `${Math.round(elapsed / 1000)}s` : `${Math.round(elapsed)}ms`;
             const nodesStr = nodeCount >= 1000000 ? `${(nodeCount / 1000000).toFixed(1)}M` : nodeCount >= 1000 ? `${Math.round(nodeCount / 1000)}k` : `${nodeCount}`;
             const tp = elapsed > 0 ? Math.round(nodeCount / elapsed) : 0;
-            showAILineRaw(`{D${depth}/${targetDepth} ${timeStr} ${nodesStr} ${tp}/ms T${temperature.toString().slice(0, 4)}}`);
+            showAILineRaw(`{${E.getOwn()} ${E.getOpp()}} {D${depth}/${targetDepth} ${timeStr} ${nodesStr} ${tp}/ms T${temperature.toString().slice(0, 4)}}`);
         }
 
         // 走后弹幕
