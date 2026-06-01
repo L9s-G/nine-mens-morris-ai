@@ -22,7 +22,6 @@
 const Engine = (() => {
     // ==================== 常量定义 ====================
 
-    const EMPTY = 0;               // 空位（仅用于兼容常量导出，内部不使用）
     const TYPE_OPPONENT = 1;       // 白棋（玩家）
     const TYPE_AI = 2;             // 黑棋（AI）
     const BOARD_SIZE = 24;         // 棋盘交点数（3 层正方形 × 8 交点）
@@ -735,7 +734,6 @@ const Engine = (() => {
     // ==================== 公开接口 ====================
     return {
         // ── 玩家常量 ──
-        EMPTY,              // 0（空位）
         TYPE_OPPONENT,      // 1（白棋/玩家）
         TYPE_AI,            // 2（黑棋/AI）
         BOARD_SIZE,         // 24
