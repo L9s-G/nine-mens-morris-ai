@@ -519,7 +519,6 @@ const Engine = (() => {
      *   新版：while(emptyBits) { ctz(emptyBits); emptyBits &= emptyBits-1; } → 只迭代空位数
      */
     function generateLegalMoves(player) {
-        const moves = [];
         const playerBit = player === TYPE_AI ? 1 : 0;
         const oppType = player === TYPE_OPPONENT ? TYPE_AI : TYPE_OPPONENT;
         const playerBits = getPlayerBits(player);
@@ -529,6 +528,7 @@ const Engine = (() => {
 
         // ── 吃子阶段 ──
         if (state.millMove) {
+            const moves = [];
             let remBits = 0;
             let bits = oppBits;
             while (bits) {
@@ -545,17 +545,16 @@ const Engine = (() => {
             return moves;
         }
 
-        // ── 放置阶段 ──
+        // ── 生成基础走法 ──
+        const base = [];
         if (phase === PHASE_PLACEMENT) {
             let bits = emptyBits;
             while (bits) {
                 const to = ctz(bits);
-                moves.push(encodeMove(player, MT_PLACE, MOVE_NONE, to, null));
+                base.push(encodeMove(player, MT_PLACE, MOVE_NONE, to, null));
                 bits &= bits - 1;
             }
-        }
-        // ── 移动/飞行阶段 ──
-        else {
+        } else {
             let pieces = playerBits;
             while (pieces) {
                 const from = ctz(pieces);
@@ -565,53 +564,52 @@ const Engine = (() => {
                 let t = targets;
                 while (t) {
                     const to = ctz(t);
-                    moves.push(encodeMove(player, phase === PHASE_FLYING ? MT_FLY : MT_MOVE, from, to, null));
+                    base.push(encodeMove(player, phase === PHASE_FLYING ? MT_FLY : MT_MOVE, from, to, null));
                     t &= t - 1;
                 }
                 pieces &= pieces - 1;
             }
         }
 
-        // ── 成磨展开吃子 ──
+        // ── 检测是否有成磨走法 ──
         let hasMill = false;
-        for (let mi = 0; mi < moves.length; mi++) {
-            const m = moves[mi];
-            const to = (m >> 5) & 0x1F;
-            if (wouldFormMillBits(playerBits, to)) { hasMill = true; break; }
+        for (let mi = 0; mi < base.length; mi++) {
+            if (wouldFormMillBits(playerBits, (base[mi] >> 5) & 0x1F)) { hasMill = true; break; }
         }
 
-        if (hasMill) {
-            let remBits = 0;
-            let bits = oppBits;
-            while (bits) {
-                const pos = ctz(bits);
-                if (!isInMillBits(oppBits, pos)) remBits |= (1 << pos);
-                bits &= bits - 1;
-            }
-            if (!remBits) remBits = oppBits;
+        // 无成磨：所有走法 remove=null，无需排序
+        if (!hasMill) return base;
 
-            const result = [];
-            for (let mi = 0; mi < moves.length; mi++) {
-                const m = moves[mi];
+        // ── 成磨展开：captures 在前，rest 在后（写入顺序即优先级，零 sort）──
+        let remBits = 0;
+        let bits = oppBits;
+        while (bits) {
+            const pos = ctz(bits);
+            if (!isInMillBits(oppBits, pos)) remBits |= (1 << pos);
+            bits &= bits - 1;
+        }
+        if (!remBits) remBits = oppBits;
+
+        const captures = [];
+        const rest = [];
+        for (let mi = 0; mi < base.length; mi++) {
+            const m = base[mi];
+            const mTo = (m >> 5) & 0x1F;
+            if (wouldFormMillBits(playerBits, mTo)) {
                 const mType = (m >> 15) & 3;
                 const mFrom = m & 0x1F;
-                const mTo = (m >> 5) & 0x1F;
-                if (wouldFormMillBits(playerBits, mTo)) {
-                    let rb = remBits;
-                    while (rb) {
-                        result.push(encodeMove(player, mType, mFrom, mTo, ctz(rb)));
-                        rb &= rb - 1;
-                    }
-                } else {
-                    result.push(m);
+                let rb = remBits;
+                while (rb) {
+                    captures.push(encodeMove(player, mType, mFrom, mTo, ctz(rb)));
+                    rb &= rb - 1;
                 }
+            } else {
+                rest.push(m);
             }
-            result.sort((a, b) => ((b >> 10) & 0x1F) - ((a >> 10) & 0x1F));
-            return result;
         }
-
-        moves.sort((a, b) => ((b >> 10) & 0x1F) - ((a >> 10) & 0x1F));
-        return moves;
+        // captures.concat(rest)：吃子走法天然在前，无排序开销
+        for (let i = 0; i < rest.length; i++) captures.push(rest[i]);
+        return captures;
     }
 
     // ==================== 执行走法 ====================
