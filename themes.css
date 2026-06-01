@@ -264,6 +264,132 @@
     --theme-radius: 6px;
 }
 
+/* ==================== 雾灰石板主题 ==================== */
+
+[data-theme="fogslate"] {
+    /* ── 背景与面板：深灰石板 ── */
+    --theme-bg: #1f2226;
+    --theme-surface: #2a2e33;
+    --theme-overlay: rgba(0, 0, 0, 0.55);
+
+    /* ── 文字 ── */
+    --theme-text: #e5e7eb;
+    --theme-text-secondary: #9ca3af;
+
+    /* ── 强调色：冷雾蓝 ── */
+    --theme-accent: #7dd3fc;
+
+    /* ── 边框 ── */
+    --theme-border: #3b4046;
+    --theme-border-strong: #2c3035;
+
+    /* ── 交互态 ── */
+    --theme-hover: rgba(125, 211, 252, 0.08);
+    --theme-active: rgba(125, 211, 252, 0.16);
+
+    /* ── 棋盘：石板灰 ── */
+    --theme-board-face: #d6d3ce;
+    --theme-board-stroke: #9a948c;
+    --theme-board-line: #6b7280;
+    --theme-board-hover: #c8c5c0;
+    --theme-board-highlight: #d6d3ce;
+
+    /* ── 棋子 ── */
+    --theme-piece-white: #f3f4f6;
+    --theme-piece-white-stroke: #d1d5db;
+    --theme-piece-black: #374151;
+    --theme-piece-black-stroke: #1f2937;
+    --theme-capture: #60a5fa;
+    --theme-capture-glow: rgba(96, 165, 250, 0.4);
+    --theme-thinking: #7dd3fc;
+
+    /* ── 状态圆点 ── */
+    --theme-dot-white: #e5e7eb;
+    --theme-dot-black: #4b5563;
+    --theme-dot-black-board: #6b7280;
+    --theme-dot-lost: #9ca3af;
+
+    /* ── 气泡与弹幕 ── */
+    --theme-bubble: #2f3338;
+    --theme-danmaku: #ffffff;
+
+    /* ── 阴影 ── */
+    --theme-shadow-piece: rgba(0, 0, 0, 0.25);
+    --theme-shadow-piece-dark: rgba(0, 0, 0, 0.4);
+    --theme-highlight-bright: rgba(255, 255, 255, 0.85);
+    --theme-highlight-soft: rgba(255, 255, 255, 0.35);
+    --theme-shadow-ambient: rgba(0, 0, 0, 0.15);
+    --theme-shadow-board: rgba(0, 0, 0, 0.35);
+    --theme-shadow-danmaku: rgba(0, 0, 0, 0.7);
+    --theme-shadow-modal: rgba(0, 0, 0, 0.45);
+
+    /* ── 圆角 ── */
+    --theme-radius: 8px;
+}
+
+/* ==================== 晨光暖灰主题 ==================== */
+
+[data-theme="dawnwarm"] {
+    /* ── 背景与面板：暖灰白 ── */
+    --theme-bg: #f0efec;
+    --theme-surface: #ffffff;
+    --theme-overlay: rgba(120, 110, 100, 0.25);
+
+    /* ── 文字 ── */
+    --theme-text: #3f3f3f;
+    --theme-text-secondary: #7a7a7a;
+
+    /* ── 强调色：晨光橙 ── */
+    --theme-accent: #f4a261;
+
+    /* ── 边框 ── */
+    --theme-border: #e2e2e0;
+    --theme-border-strong: #d6d6d4;
+
+    /* ── 交互态 ── */
+    --theme-hover: rgba(244, 162, 97, 0.12);
+    --theme-active: rgba(244, 162, 97, 0.22);
+
+    /* ── 棋盘：暖灰白 ── */
+    --theme-board-face: #f7f4ef;
+    --theme-board-stroke: #e0d8cf;
+    --theme-board-line: #c4b8ac;
+    --theme-board-hover: #efe9e2;
+    --theme-board-highlight: #f7f4ef;
+
+    /* ── 棋子 ── */
+    --theme-piece-white: #ffffff;
+    --theme-piece-white-stroke: #e5e5e5;
+    --theme-piece-black: #8d6e63;
+    --theme-piece-black-stroke: #6d4c41;
+    --theme-capture: #e76f51;
+    --theme-capture-glow: rgba(231, 111, 81, 0.35);
+    --theme-thinking: #f4a261;
+
+    /* ── 状态圆点 ── */
+    --theme-dot-white: #dcdcdc;
+    --theme-dot-black: #8d6e63;
+    --theme-dot-black-board: #a1887f;
+    --theme-dot-lost: #bdb5ae;
+
+    /* ── 气泡与弹幕 ── */
+    --theme-bubble: #f3ede7;
+    --theme-danmaku: #6d4c41;
+
+    /* ── 阴影 ── */
+    --theme-shadow-piece: rgba(0, 0, 0, 0.15);
+    --theme-shadow-piece-dark: rgba(0, 0, 0, 0.25);
+    --theme-highlight-bright: rgba(255, 255, 255, 0.9);
+    --theme-highlight-soft: rgba(255, 255, 255, 0.45);
+    --theme-shadow-ambient: rgba(0, 0, 0, 0.08);
+    --theme-shadow-board: rgba(0, 0, 0, 0.12);
+    --theme-shadow-danmaku: rgba(0, 0, 0, 0.5);
+    --theme-shadow-modal: rgba(0, 0, 0, 0.25);
+
+    /* ── 圆角 ── */
+    --theme-radius: 10px;
+}
+
 /* ==================== 赛博主题专属发光效果 ==================== */
 
 [data-theme="cyber"] #board-lines {
