@@ -330,7 +330,7 @@ const Game = (() => {
         playerMoves = [];
 
         // 走前：hash
-        if (debugMode) showAILineRaw(`{${E.getOwn().toString(16).padStart(6,'0')}:${E.getOpp().toString(16).padStart(6,'0')}}`);
+        if (debugMode) showAILineRaw(`{${E.getOwn().toString(16).toUpperCase().padStart(6,'0')}:${E.getOpp().toString(16).toUpperCase().padStart(6,'0')}}`);
 
         // 走前弹幕
         const preMove = Taunt.getPreMessage(Engine.getStateView());
@@ -352,7 +352,7 @@ const Game = (() => {
             const timeStr = elapsed >= 1000 ? `${Math.round(elapsed / 1000)}s` : `${Math.round(elapsed)}ms`;
             const nodesStr = nodeCount >= 1000000 ? `${(nodeCount / 1000000).toFixed(1)}M` : nodeCount >= 1000 ? `${Math.round(nodeCount / 1000)}k` : `${nodeCount}`;
             const tp = elapsed > 0 ? Math.round(nodeCount / elapsed) : 0;
-            const h = `${E.getOwn().toString(16).padStart(6,'0')}:${E.getOpp().toString(16).padStart(6,'0')}`;
+            const h = `${E.getOwn().toString(16).toUpperCase().padStart(6,'0')}:${E.getOpp().toString(16).toUpperCase().padStart(6,'0')}`;
             showAILineRaw(`{${h}} {D${depth}/${targetDepth} ${timeStr} ${nodesStr} ${tp}/ms T${temperature.toString().slice(0, 4)}}`);
         }
 
