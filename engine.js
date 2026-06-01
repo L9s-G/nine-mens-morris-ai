@@ -9,13 +9,13 @@
 // 设计演进：
 //   v1: 24 元素数组 board[i] ∈ {0,1,2}
 //   v2: 三进制编码 hash = Σ board[i] × 3^i（pow3[] 增量更新）
-//   v3（当前）: 双二进制位掩码 + 双 Float64Array 环形缓冲区（零 hash 计算）
+//   v3（当前）: 双二进制位掩码 + 双 Uint32Array 环形缓冲区（零 hash 计算）
 //
 // 职责：游戏规则 + 棋盘状态维护
 //   - 走法生成（含成磨展开吃子）
 //   - 走法执行 / 撤销（makeMove / undoMove）
 //   - 状态查询（阶段、终局、FEN 序列化）
-//   - 三次重复检测（双 Float64Array 环形缓冲区）
+//   - 三次重复检测（双 Uint32Array 环形缓冲区）
 // 不含：策略评估、AI 搜索、权重计算
 // ========================================================
 
@@ -192,9 +192,9 @@ const Engine = (() => {
     // ==================== 三次重复检测 ====================
     // 游戏规则：30 步内同一局面出现 3 次判和。
     //
-    // 设计：双 Float64Array 环形缓冲区（32 槽），直接存储 own/opp 原始值。
+    // 设计：双 Uint32Array 环形缓冲区（32 槽），直接存储 own/opp 原始值。
     //   - 零 hash 计算：makeMove 只需写入 own/opp，无需额外算 hash
-    //   - Float64Array 连续内存，不触发 GC，适合深度搜索高频调用
+    //   - Uint32Array 连续内存，不触发 GC，适合深度搜索高频调用
     //   - 48 位状态（own 24 位 + opp 24 位）在 Float64 精度范围内（2^53），零精度损失
     //   - 旧版用三进制 hash（pow3[] 乘法 + u32 截断），有碰撞风险且每步需增量计算
 
@@ -275,8 +275,8 @@ const Engine = (() => {
             winner: null,          // TYPE_OPPONENT | TYPE_AI | null（平局）
 
             // ── 三次重复检测（双缓冲区）──
-            posOwn: new Float64Array(POS_WINDOW),  // AI 位掩码历史
-            posOpp: new Float64Array(POS_WINDOW),  // 对手位掩码历史
+            posOwn: new Uint32Array(POS_WINDOW),  // AI 位掩码历史
+            posOpp: new Uint32Array(POS_WINDOW),  // 对手位掩码历史
             writeIdx: 0,                            // 写指针（绝对位置，取模定位）
         };
     }
@@ -343,8 +343,8 @@ const Engine = (() => {
             playerAI: { ...state.playerAI },
             moveHistory: [...state.moveHistory],
             gameOver: state.gameOver, winner: state.winner,
-            posOwn: new Float64Array(state.posOwn),
-            posOpp: new Float64Array(state.posOpp),
+            posOwn: new Uint32Array(state.posOwn),
+            posOpp: new Uint32Array(state.posOpp),
             writeIdx: state.writeIdx,
         };
     }
@@ -448,8 +448,8 @@ const Engine = (() => {
                 millMove,
                 moveHistory: [],
                 gameOver: false, winner: null,
-                posOwn: new Float64Array(POS_WINDOW),
-                posOpp: new Float64Array(POS_WINDOW),
+                posOwn: new Uint32Array(POS_WINDOW),
+                posOpp: new Uint32Array(POS_WINDOW),
                 writeIdx: 0,
             };
             pushState();
