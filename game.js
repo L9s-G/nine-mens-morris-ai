@@ -278,7 +278,8 @@ const Game = (() => {
     }
 
     async function executePlayerMove(move) {
-        await animateAndExecute(move);
+        // move 是 decoded 对象，需要重新编码为整数传给 animateAndExecute
+        await animateAndExecute(E.encodeMove(move.player, E.TYPE_ENCODE[move.type], move.from, move.to, move.remove));
         resetSelection();
         updateStatus();
 
