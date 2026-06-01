@@ -178,6 +178,7 @@ const Engine = (() => {
      */
     function isInMill(board, pos) {
         const player = board[pos];
+        if (player === EMPTY) return false;
         const posMills = POSITION_MILLS[pos];
         for (let i = 0; i < posMills.length; i++) {
             const mill = MILLS[posMills[i]];
@@ -655,5 +656,6 @@ const Engine = (() => {
         makeMove,           // (move) → boolean: true=成磨，调用者需触发吃子而非切换回合
         undoMove,           // () 撤销最后一步（成磨+吃子需调两次）
         isInMill,           // (board, pos) → boolean（pos 棋子是否在完成的磨坊中）
+        wouldFormMill,      // (board, to, player) → boolean（落子是否会形成磨坊）
     };
 })();
