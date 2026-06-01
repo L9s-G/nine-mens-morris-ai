@@ -1,100 +1,155 @@
 // ========================================================
-// Nine Men's Morris 核心引擎 (Engine)
+// Nine Men's Morris 核心引擎 (Engine) — Bitboard 版
 // 职责：游戏规则 + 棋盘状态维护
-//   - 棋盘拓扑（NEIGHBORS / MILLS / POSITION_MILLS）
+//   - 双二进制棋盘（own/opp 位掩码）
 //   - 走法生成（含成磨展开吃子）
 //   - 走法执行 / 撤销（makeMove / undoMove）
 //   - 状态查询（阶段、终局、FEN 序列化）
+//   - 三次重复检测（双 Float64Array 环形缓冲区，零 hash 计算）
 // 不含：策略评估、AI 搜索、权重计算
 // ========================================================
 
 const Engine = (() => {
     // ==================== 常量定义 ====================
-    const EMPTY = 0;           // 空位
+    const EMPTY = 0;           // 空位（兼容常量，getBoard 等接口使用）
     const TYPE_OPPONENT = 1;   // 白棋
     const TYPE_AI = 2;         // 黑棋
     const BOARD_SIZE = 24;
+    const BOARD_MASK = 0xFFFFFF;  // 24 位掩码
 
-    // 每个点的邻居关系（移动时使用）
-    const NEIGHBORS = [
-        [1, 9],           // 0
-        [0, 2, 4],        // 1
-        [1, 14],          // 2
-        [4, 10],          // 3
-        [1, 3, 5, 7],     // 4
-        [4, 13],          // 5
-        [7, 11],          // 6
-        [4, 6, 8],        // 7
-        [7, 12],          // 8
-        [0, 10, 21],      // 9
-        [3, 9, 11, 18],   // 10
-        [6, 10, 15],      // 11
-        [8, 13, 17],      // 12
-        [5, 12, 14, 20],  // 13
-        [2, 13, 23],      // 14
-        [11, 16],         // 15
-        [15, 17, 19],     // 16
-        [12, 16],         // 17
-        [10, 19],         // 18
-        [16, 18, 20, 22], // 19
-        [13, 19],         // 20
-        [9, 22],          // 21
-        [19, 21, 23],     // 22
-        [14, 22]          // 23
+    // ==================== 预计算表 ====================
+
+    // 16 条 mill 线的位掩码
+    const MILL_MASKS = [
+        0b000000000000000000000111, // 0: [0,1,2]
+        0b000000000000000000111000, // 1: [3,4,5]
+        0b000000000000000111000000, // 2: [6,7,8]
+        0b000000000000111000000000, // 3: [9,10,11]
+        0b000000000111000000000000, // 4: [12,13,14]
+        0b000000111000000000000000, // 5: [15,16,17]
+        0b000111000000000000000000, // 6: [18,19,20]
+        0b111000000000000000000000, // 7: [21,22,23]
+        (1<<0)|(1<<9)|(1<<21),     // 8: [0,9,21]
+        (1<<3)|(1<<10)|(1<<18),    // 9: [3,10,18]
+        (1<<6)|(1<<11)|(1<<15),    // 10: [6,11,15]
+        (1<<8)|(1<<12)|(1<<17),    // 11: [8,12,17]
+        (1<<5)|(1<<13)|(1<<20),    // 12: [5,13,20]
+        (1<<2)|(1<<14)|(1<<23),    // 13: [2,14,23]
+        (1<<1)|(1<<4)|(1<<7),      // 14: [1,4,7]
+        (1<<16)|(1<<19)|(1<<22),   // 15: [16,19,22]
     ];
 
-    // 所有可能的 Mill（共 16 条）
-    const MILLS = [
-        [0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11], [12, 13, 14], [15, 16, 17], [18, 19, 20], [21, 22, 23], // 横线
-        [0, 9, 21], [3, 10, 18], [6, 11, 15], [8, 12, 17], [5, 13, 20], [2, 14, 23], [1, 4, 7], [16, 19, 22]  // 竖线
-    ];
-
-    // 每个位置所属的 Mill 索引（每个位置恰好属于 1 横 1 竖两条线）
-    // 使用：POSITION_MILLS[pos] → [millIdx1, millIdx2]
-    //       MILLS[millIdx] → 该线上的 3 个位置（pos 及其 2 个邻居）
-    const POSITION_MILLS = Array.from({ length: 24 }, () => []);
-    for (let i = 0; i < MILLS.length; i++) {
-        for (let j = 0; j < 3; j++) POSITION_MILLS[MILLS[i][j]].push(i);
+    // 从 MILL_MASKS 反推位置
+    function decodeMillPos(millIdx) {
+        const mask = MILL_MASKS[millIdx];
+        const pos = [];
+        for (let i = 0; i < 24; i++) { if (mask & (1 << i)) pos.push(i); }
+        return pos;
     }
 
-    // ==================== 位置哈希（三次重复检测） ====================
-    // 游戏规则：30 步内同一局面出现 3 次判和
-    // 环形缓冲区 32 槽（2 的幂 → 取模用位与），滑动窗口覆盖 30 步规则
+    // 每个位置属于哪两条 mill 线
+    const POSITION_MILLS = Array.from({ length: 24 }, () => []);
+    for (let i = 0; i < 16; i++) {
+        const pos = decodeMillPos(i);
+        for (let j = 0; j < 3; j++) POSITION_MILLS[pos[j]].push(i);
+    }
+
+    // 每个位置的 mill 线去掉该位置后的两子掩码
+    // MILL_WITHOUT[pos][k] = millMask & ~(1<<pos)，其中 k=0,1 对应 POSITION_MILLS[pos] 的两条线
+    const MILL_WITHOUT = Array.from({ length: 24 }, () => []);
+    for (let pos = 0; pos < 24; pos++) {
+        const pms = POSITION_MILLS[pos];
+        for (let k = 0; k < pms.length; k++) {
+            MILL_WITHOUT[pos][k] = MILL_MASKS[pms[k]] & ~(1 << pos);
+        }
+    }
+
+    // 24 个位置的邻居位掩码
+    const NEIGHBOR_MASKS = [
+        (1<<1)|(1<<9),                         // 0
+        (1<<0)|(1<<2)|(1<<4),                  // 1
+        (1<<1)|(1<<14),                        // 2
+        (1<<4)|(1<<10),                        // 3
+        (1<<1)|(1<<3)|(1<<5)|(1<<7),           // 4
+        (1<<4)|(1<<13),                        // 5
+        (1<<7)|(1<<11),                        // 6
+        (1<<4)|(1<<6)|(1<<8),                  // 7
+        (1<<7)|(1<<12),                        // 8
+        (1<<0)|(1<<10)|(1<<21),                // 9
+        (1<<3)|(1<<9)|(1<<11)|(1<<18),         // 10
+        (1<<6)|(1<<10)|(1<<15),                // 11
+        (1<<8)|(1<<13)|(1<<17),                // 12
+        (1<<5)|(1<<12)|(1<<14)|(1<<20),        // 13
+        (1<<2)|(1<<13)|(1<<23),                // 14
+        (1<<11)|(1<<16),                       // 15
+        (1<<15)|(1<<17)|(1<<19),               // 16
+        (1<<12)|(1<<16),                       // 17
+        (1<<10)|(1<<19),                       // 18
+        (1<<16)|(1<<18)|(1<<20)|(1<<22),       // 19
+        (1<<13)|(1<<19),                       // 20
+        (1<<9)|(1<<22),                        // 21
+        (1<<19)|(1<<21)|(1<<23),               // 22
+        (1<<14)|(1<<22),                       // 23
+    ];
+
+    // 兼容导出：NEIGHBORS 数组形式（game.js 等外部模块使用）
+    const NEIGHBORS = Array.from({ length: 24 }, (_, pos) => {
+        const mask = NEIGHBOR_MASKS[pos];
+        const result = [];
+        for (let i = 0; i < 24; i++) { if (mask & (1 << i)) result.push(i); }
+        return result;
+    });
+
+    // 兼容导出：MILLS 数组形式
+    const MILLS = [];
+    for (let i = 0; i < 16; i++) MILLS.push(decodeMillPos(i));
+
+    // ==================== 工具函数 ====================
+
+    /** 截断为 32 位无符号整数 */
+    function u32(n) { return n >>> 0; }
+
+    /** Count Trailing Zeros — 取最低位的 1 的位置 */
+    function ctz(x) { return 31 - Math.clz32(x & -x); }
+
+    /** Population Count — 统计 1 的个数 */
+    function popcount(x) {
+        x = x - ((x >> 1) & 0x55555555);
+        x = (x & 0x33333333) + ((x >> 2) & 0x33333333);
+        return ((x + (x >> 4) & 0x0F0F0F0F) * 0x01010101) >> 24;
+    }
+
+    const PHASE_PLACEMENT = 'PLACEMENT';
+    const PHASE_MOVING = 'MOVING';
+    const PHASE_FLYING = 'FLYING';
+
+    // ==================== 三次重复检测 ====================
     const POS_WINDOW = 32;
     const POS_MASK = POS_WINDOW - 1;
 
-    // 预计算 3^i（i=0..23），用于增量哈希
-    const pow3 = new Array(BOARD_SIZE);
-    pow3[0] = 1;
-    for (let i = 1; i < BOARD_SIZE; i++) pow3[i] = pow3[i - 1] * 3;
-
-    /** 从 board + currentPlayer 计算初始哈希（截断为 32 位，与 Uint32Array 一致） */
-    function computeHash(board, currentPlayer) {
-        let h = currentPlayer;
-        for (let i = 0; i < BOARD_SIZE; i++) {
-            if (board[i]) h += board[i] * pow3[i];
-        }
-        return u32(h);
-    }
-
-    /** 推入位置哈希到环形缓冲区 */
-    function pushHash(hash) {
-        state.posBuf[state.writeIdx & POS_MASK] = hash;
+    /** 推入 own/opp 到双环形缓冲区 */
+    function pushState() {
+        const idx = state.writeIdx & POS_MASK;
+        state.posOwn[idx] = state.own;
+        state.posOpp[idx] = state.opp;
         state.writeIdx++;
     }
 
-    /** 弹出最后入窗口的位置哈希 */
-    function popHash() {
+    /** 弹出最后入窗口的状态 */
+    function popState() {
         state.writeIdx--;
-        state.posBuf[state.writeIdx & POS_MASK] = 0;
+        const idx = state.writeIdx & POS_MASK;
+        state.posOwn[idx] = 0;
+        state.posOpp[idx] = 0;
     }
 
-    /** 检查三次重复：遍历窗口，当前哈希出现 ≥3 次 → 判和 */
-    function checkRepetition(hash) {
-        const buf = state.posBuf;
+    /** 检查三次重复：遍历窗口，当前 (own,opp) 出现 ≥3 次 → 判和 */
+    function checkRepetition() {
+        const o = state.own, p = state.opp;
+        const bufO = state.posOwn, bufP = state.posOpp;
         let count = 0;
         for (let i = 0; i < POS_WINDOW; i++) {
-            if (buf[i] === hash && ++count >= 3) {
+            if (bufO[i] === o && bufP[i] === p && ++count >= 3) {
                 state.gameOver = true;
                 state.winner = null;
                 return;
@@ -102,13 +157,13 @@ const Engine = (() => {
         }
     }
 
-    /** 查询当前局面在窗口中的重复次数（只读，供弹幕等交互使用） */
+    /** 查询当前局面在窗口中的重复次数 */
     function getRepetitionCount() {
-        const hash = state.posHash;
-        const buf = state.posBuf;
+        const o = state.own, p = state.opp;
+        const bufO = state.posOwn, bufP = state.posOpp;
         let count = 0;
         for (let i = 0; i < POS_WINDOW; i++) {
-            if (buf[i] === hash) count++;
+            if (bufO[i] === o && bufP[i] === p) count++;
         }
         return count;
     }
@@ -124,10 +179,12 @@ const Engine = (() => {
         } = config;
 
         return {
-            board: new Array(BOARD_SIZE).fill(EMPTY),   // EMPTY | TYPE_OPPONENT | TYPE_AI
+            own: 0,          // AI 棋子位掩码
+            opp: 0,          // 对手棋子位掩码
+            board: new Array(BOARD_SIZE).fill(EMPTY),  // 兼容属性（与 own/opp 同步）
 
-            currentPlayer: firstPlayer,                // 当前玩家
-            millMove: false,                           // 是否处于吃子阶段（刚形成 Mill）
+            currentPlayer: firstPlayer,
+            millMove: false,
 
             playerOpponent: {
                 piecesOnHand: opponentHand,
@@ -140,41 +197,57 @@ const Engine = (() => {
                 piecesLost: 0
             },
 
-            moveHistory: [],      // 走棋历史
+            moveHistory: [],
             gameOver: false,
             winner: null,
 
-            // ── 位置哈希（三次重复检测）──
-            posHash: 0,
-            posBuf: new Uint32Array(POS_WINDOW),  // 环形缓冲区（连续内存）
-            writeIdx: 0,                     // 写指针（绝对位置，取模定位）
+            // ── 三次重复检测（双缓冲区，零 hash）──
+            posOwn: new Float64Array(POS_WINDOW),
+            posOpp: new Float64Array(POS_WINDOW),
+            writeIdx: 0,
         };
     }
 
-    // ==================== 工具函数 ====================
+    // ==================== board ↔ bits 同步 ====================
 
-    /** 截断为 32 位无符号整数（哈希增量更新后保持 Uint32Array 一致性） */
-    function u32(n) { return n >>> 0; }
-
-    const PHASE_PLACEMENT = 'PLACEMENT';
-    const PHASE_MOVING = 'MOVING';
-    const PHASE_FLYING = 'FLYING';
-
-    /** 获取玩家当前所处阶段 */
-    function getPhase(player) {
-        const p = getPlayer(player);
-        if (p.piecesOnHand > 0) return PHASE_PLACEMENT;
-        if (p.piecesOnBoard === 3) return PHASE_FLYING;
-        return PHASE_MOVING;
+    /** 从 board[] 同步到位掩码（测试初始化时使用） */
+    function syncBitsFromBoard() {
+        let o = 0, p = 0;
+        const board = state.board;
+        for (let i = 0; i < BOARD_SIZE; i++) {
+            if (board[i] === TYPE_AI) o |= (1 << i);
+            else if (board[i] === TYPE_OPPONENT) p |= (1 << i);
+        }
+        state.own = o;
+        state.opp = p;
     }
 
-    /** 根据玩家类型返回对应的玩家的棋子数 */
-    function getPlayer(playerType) {
-        return playerType === TYPE_OPPONENT ? state.playerOpponent : state.playerAI;
+    /** 从位掩码同步到 board[]（makeMove/undoMove 后使用） */
+    function syncBoardFromBits() {
+        const board = state.board;
+        for (let i = 0; i < BOARD_SIZE; i++) {
+            board[i] = (state.own >> i) & 1 ? TYPE_AI : (state.opp >> i) & 1 ? TYPE_OPPONENT : EMPTY;
+        }
+    }
+
+    // ==================== 磨坊检测 ====================
+
+    /**
+     * pos 是否已在完成的磨坊中
+     * @param {number} playerBits - 该玩家的位掩码（own 或 opp）
+     * @param {number} pos - 位置
+     */
+    function isInMillBits(playerBits, pos) {
+        const pms = POSITION_MILLS[pos];
+        for (let i = 0; i < pms.length; i++) {
+            if ((playerBits & MILL_MASKS[pms[i]]) === MILL_MASKS[pms[i]]) return true;
+        }
+        return false;
     }
 
     /**
-     * pos 是否已在完成的磨坊中（棋盘已落子，检查 3 子是否同色）
+     * 兼容接口：isInMill(board, pos) — 从 board 数组形式检测
+     * board 可以是任意 24 元素数组（不依赖 state）
      */
     function isInMill(board, pos) {
         const player = board[pos];
@@ -182,17 +255,25 @@ const Engine = (() => {
         const posMills = POSITION_MILLS[pos];
         for (let i = 0; i < posMills.length; i++) {
             const mill = MILLS[posMills[i]];
-            if (board[mill[0]] === player && board[mill[1]] === player && board[mill[2]] === player) {
-                return true;
-            }
+            if (board[mill[0]] === player && board[mill[1]] === player && board[mill[2]] === player) return true;
         }
         return false;
     }
 
     /**
-     * 在空位 to 落子是否会形成磨坊
-     * 前提：board[to] === EMPTY
-     * 逻辑：to 所在的每条磨坊线，另外两子是否都是 player
+     * 在空位 to 落子是否会形成磨坊（bitboard 版）
+     */
+    function wouldFormMillBits(playerBits, to) {
+        const pms = POSITION_MILLS[to];
+        for (let i = 0; i < pms.length; i++) {
+            if ((playerBits & MILL_WITHOUT[to][i]) === MILL_WITHOUT[to][i]) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 兼容接口：wouldFormMill(board, to, player) — 从 board 数组形式检测
+     * board 可以是任意 24 元素数组（不依赖 state）
      */
     function wouldFormMill(board, to, player) {
         const posMills = POSITION_MILLS[to];
@@ -209,46 +290,84 @@ const Engine = (() => {
 
     // ==================== 核心接口 ====================
 
-    /** 初始化游戏（支持配置先手等） */
+    /** 初始化游戏 */
     function init(config = {}) {
         state = createInitialState(config);
-        state.posHash = computeHash(state.board, state.currentPlayer);
-        pushHash(state.posHash);
+        pushState();
     }
 
     /** 获取当前状态的深拷贝 */
     function getState() {
-        return JSON.parse(JSON.stringify(state));
+        const s = {
+            own: state.own,
+            opp: state.opp,
+            board: getBoardArray(),
+            currentPlayer: state.currentPlayer,
+            millMove: state.millMove,
+            playerOpponent: { ...state.playerOpponent },
+            playerAI: { ...state.playerAI },
+            moveHistory: [...state.moveHistory],
+            gameOver: state.gameOver,
+            winner: state.winner,
+            posOwn: new Float64Array(state.posOwn),
+            posOpp: new Float64Array(state.posOpp),
+            writeIdx: state.writeIdx,
+        };
+        return s;
     }
 
-    /** 获取状态视图（只读，禁止修改；返回内部引用，避免深拷贝开销） */
+    /** 获取状态视图（只读，返回内部引用，board 属性与 own/opp 同步） */
     function getStateView() {
+        syncBoardFromBits();
         return state;
     }
 
-    /** 获取棋盘浅拷贝（仅供读取，避免 getState 的全量深拷贝开销） */
-    function getBoard() {
-        return state.board.slice();
+    /** 从 own/opp 重建 24 元素数组 */
+    function getBoardArray() {
+        const board = new Array(BOARD_SIZE);
+        for (let i = 0; i < BOARD_SIZE; i++) {
+            board[i] = (state.own >> i) & 1 ? TYPE_AI : (state.opp >> i) & 1 ? TYPE_OPPONENT : EMPTY;
+        }
+        return board;
     }
 
-    /** 轻量查询：游戏是否结束（无深拷贝） */
+    /** 获取棋盘浅拷贝（兼容接口） */
+    function getBoard() {
+        return getBoardArray();
+    }
+
+    /** 轻量查询：游戏是否结束 */
     function isGameOver() {
         return state.gameOver;
     }
 
-    /** 轻量查询：获胜方（无深拷贝） */
+    /** 轻量查询：获胜方 */
     function getWinner() {
         return state.winner;
     }
 
+    /** 获取玩家当前所处阶段 */
+    function getPhase(player) {
+        const p = getPlayer(player);
+        if (p.piecesOnHand > 0) return PHASE_PLACEMENT;
+        if (p.piecesOnBoard === 3) return PHASE_FLYING;
+        return PHASE_MOVING;
+    }
+
+    /** 根据玩家类型返回对应的玩家数据 */
+    function getPlayer(playerType) {
+        return playerType === TYPE_OPPONENT ? state.playerOpponent : state.playerAI;
+    }
+
+    /** 获取玩家的位掩码 */
+    function getPlayerBits(player) {
+        return player === TYPE_AI ? state.own : state.opp;
+    }
+
     // ==================== MILL-FEN（棋盘快照） ====================
 
-    /** 将当前局面打包为 JSON 字符串 */
+    /** 将当前局面打包为 JSON 字符串（新格式：直接存 own/opp） */
     function toFen() {
-        let board = 0;
-        for (let i = 0; i < BOARD_SIZE; i++) {
-            if (state.board[i]) board += state.board[i] * pow3[i];
-        }
         const o = state.playerOpponent;
         const a = state.playerAI;
         const meta = (o.piecesOnHand << 16)
@@ -256,200 +375,148 @@ const Engine = (() => {
             | (a.piecesOnHand << 8)
             | (a.piecesLost << 4)
             | state.currentPlayer | (state.millMove ? 2 : 0);
-        return `{"board":${board},"meta":"0x${meta.toString(16).padStart(5, '0')}"}`;
+        return `{"own":${state.own},"opp":${state.opp},"meta":"0x${meta.toString(16).padStart(5, '0')}"}`;
     }
 
-    /** 从快照恢复局面（输入非法则抛异常，由调用方处理） */
+    /** 从快照恢复局面（只处理新格式） */
     function fromFen(fen) {
         if (typeof fen !== 'string') throw new Error("Invalid FEN: expected string");
         const obj = JSON.parse(fen);
-        const boardNum = obj.board;
-        const metaStr = obj.meta;
-        if (typeof boardNum !== 'number' || typeof metaStr !== 'string') throw new Error("Invalid FEN: missing board/meta");
-        if (boardNum < 0) throw new Error("Invalid FEN: negative board");
-        const m = parseInt(metaStr, 16);
-        if (Number.isNaN(m) || m < 0) throw new Error("Invalid FEN: bad meta");
 
-        const board = new Array(BOARD_SIZE);
-        let val = boardNum;
-        let onBoardOpp = 0, onBoardAI = 0;
-        for (let i = 0; i < BOARD_SIZE; i++) {
-            const v = val % 3;
-            if (v === TYPE_OPPONENT) onBoardOpp++;
-            else if (v === TYPE_AI) onBoardAI++;
-            board[i] = v;  // 0=EMPTY, 1=TYPE_OPPONENT, 2=TYPE_AI
-            val = (val - v) / 3;
+        // 新格式：{ own, opp, meta }
+        if (typeof obj.own === 'number' && typeof obj.opp === 'number') {
+            const ownVal = u32(obj.own);
+            const oppVal = u32(obj.opp);
+            if (ownVal < 0 || oppVal < 0) throw new Error("Invalid FEN: negative own/opp");
+            if (ownVal & oppVal) throw new Error("Invalid FEN: own & opp overlap");
+
+            const metaStr = obj.meta;
+            if (typeof metaStr !== 'string') throw new Error("Invalid FEN: missing meta");
+            const m = parseInt(metaStr, 16);
+            if (Number.isNaN(m) || m < 0) throw new Error("Invalid FEN: bad meta");
+
+            const onBoardAI = popcount(ownVal);
+            const onBoardOpp = popcount(oppVal);
+
+            const last = m & 0xf;
+            if (last > 4) throw new Error("Invalid FEN: bad last");
+            const aLost = (m >> 4) & 0xf;
+            const aHand = (m >> 8) & 0xf;
+            const oLost = (m >> 12) & 0xf;
+            const oHand = (m >> 16) & 0xf;
+            if (oHand + onBoardOpp + oLost !== 9) throw new Error("Invalid FEN: opponent piece mismatch");
+            if (aHand + onBoardAI + aLost !== 9) throw new Error("Invalid FEN: ai piece mismatch");
+
+            const currentPlayer = last <= 2 ? last : last - 2;
+            if (currentPlayer !== TYPE_OPPONENT && currentPlayer !== TYPE_AI) throw new Error("Invalid FEN: bad player");
+            const millMove = last > 2;
+
+            state = {
+                own: ownVal,
+                opp: oppVal,
+                board: new Array(BOARD_SIZE).fill(EMPTY),
+                currentPlayer,
+                playerOpponent: { piecesOnHand: oHand, piecesOnBoard: onBoardOpp, piecesLost: oLost },
+                playerAI: { piecesOnHand: aHand, piecesOnBoard: onBoardAI, piecesLost: aLost },
+                millMove,
+                moveHistory: [],
+                gameOver: false,
+                winner: null,
+                posOwn: new Float64Array(POS_WINDOW),
+                posOpp: new Float64Array(POS_WINDOW),
+                writeIdx: 0,
+            };
+            syncBoardFromBits();
+            pushState();
+            return;
         }
 
-        const last = m & 0xf;
-        if (last > 4) throw new Error("Invalid FEN: bad last");
-        const aLost = (m >> 4) & 0xf;
-        const aHand = (m >> 8) & 0xf;
-        const oLost = (m >> 12) & 0xf;
-        const oHand = (m >> 16) & 0xf;
-        if (oHand + onBoardOpp + oLost !== 9) throw new Error("Invalid FEN: opponent piece mismatch");
-        if (aHand + onBoardAI + aLost !== 9) throw new Error("Invalid FEN: ai piece mismatch");
-        const opponent = { piecesOnHand: oHand, piecesOnBoard: onBoardOpp, piecesLost: oLost };
-        const ai = { piecesOnHand: aHand, piecesOnBoard: onBoardAI, piecesLost: aLost };
-        const currentPlayer = last <= 2 ? last : last - 2;
-        if (currentPlayer !== TYPE_OPPONENT && currentPlayer !== TYPE_AI) throw new Error("Invalid FEN: bad player");
-        const millMove = last > 2;
-
-        const hash = computeHash(board, currentPlayer);
-        state = {
-            board,
-            currentPlayer,
-            playerOpponent: opponent,
-            playerAI: ai,
-            millMove,
-            moveHistory: [],
-            gameOver: false,
-            winner: null,
-            posHash: hash,
-            posBuf: new Uint32Array(POS_WINDOW),
-            writeIdx: 0
-        };
-        pushHash(hash);
+        throw new Error("Invalid FEN: unsupported format");
     }
 
     // ==================== 走法生成 ====================
 
     /**
-     * 生成玩家所有合法走法
-     *
-     * 返回 Move[]，每个 Move 结构：
-     *   {
-     *     player: number,   // 执行者 (TYPE_OPPONENT=1 | TYPE_AI=2)
-     *     type: string,     // 动作类型: 'place' | 'move' | 'fly' | 'remove'
-     *     from: number,     // 起点 (place/remove 时为 -1)
-     *     to: number,       // 终点 (remove 时为 -1)
-     *     remove: number|null  // 被吃棋子位置 (null 表示无吃子)
-     *   }
-     *
-     * 三种情况：
-     *   1. 不成磨：type=动作类型, remove=null
-     *      例: { type:'place', from:-1, to:5, remove:null }
-     *
-     *   2. 成磨需吃子：type=动作类型（非 remove）, remove=被吃位置
-     *      一个动作会为所有可吃目标展开，形成多条独立 Move
-     *      例: { type:'place', from:-1, to:5, remove:12 }
-     *          { type:'place', from:-1, to:5, remove:18 }
-     *
-     *   3. 纯吃子（millMove 阶段）：type='remove', from=-1, to=-1
-     *      当上一步成磨后，进入吃子阶段，只返回吃子 Move
-     *      例: { type:'remove', from:-1, to:-1, remove:7 }
-     *
-     * 吃子约束：优先吃不在磨坊中的棋子；若对手全部在磨坊中，可吃任意一子
+     * 生成玩家所有合法走法（bitboard 版）
      */
     function generateLegalMoves(player) {
         const moves = [];
-        const opp = player === TYPE_OPPONENT ? TYPE_AI : TYPE_OPPONENT;
+        const oppType = player === TYPE_OPPONENT ? TYPE_AI : TYPE_OPPONENT;
+        const playerBits = getPlayerBits(player);
+        const oppBits = getPlayerBits(oppType);
+        const emptyBits = ~(state.own | state.opp) & BOARD_MASK;
         const phase = getPhase(player);
 
-        // 如果处于吃子阶段（millMove=true），只能执行吃子走法
+        // ── 吃子阶段 ──
         if (state.millMove) {
-            // 找到所有对手的棋子
-            const oppPositions = [];
-            for (let i = 0; i < BOARD_SIZE; i++) {
-                if (state.board[i] === opp) oppPositions.push(i);
+            let remBits = 0;
+            let bits = oppBits;
+            while (bits) {
+                const pos = ctz(bits);
+                if (!isInMillBits(oppBits, pos)) remBits |= (1 << pos);
+                bits &= bits - 1;
             }
+            if (!remBits) remBits = oppBits; // 全在 mill 中，可吃任意子
 
-            // 找到可以吃掉的棋子（不在磨坊中的棋子）
-            let removable = [];
-            for (let oi = 0; oi < oppPositions.length; oi++) {
-                const pos = oppPositions[oi];
-                if (!isInMill(state.board, pos)) {
-                    removable.push(pos);
-                }
+            bits = remBits;
+            while (bits) {
+                moves.push({ player, type: 'remove', from: -1, to: -1, remove: ctz(bits) });
+                bits &= bits - 1;
             }
-
-            // 如果对手所有棋子都在磨坊中，则可以吃任意一子
-            if (removable.length === 0) {
-                removable = oppPositions;
-            }
-
-            // 为每个可吃子位置生成一个吃子走法
-            for (let ri = 0; ri < removable.length; ri++) {
-                moves.push({
-                    player,
-                    type: 'remove',
-                    from: -1,
-                    to: -1,
-                    remove: removable[ri]
-                });
-            }
-
             return moves;
         }
 
-        // 1. 放置阶段
+        // ── 放置阶段 ──
         if (phase === PHASE_PLACEMENT) {
-            for (let to = 0; to < BOARD_SIZE; to++) {
-                if (state.board[to] === EMPTY) {
-                    moves.push({ player, type: 'place', from: -1, to, remove: null });
-                }
+            let bits = emptyBits;
+            while (bits) {
+                const to = ctz(bits);
+                moves.push({ player, type: 'place', from: -1, to, remove: null });
+                bits &= bits - 1;
             }
         }
-        // 2. 移动或飞行阶段
+        // ── 移动/飞行阶段 ──
         else {
-            const myPositions = [];
-            for (let i = 0; i < BOARD_SIZE; i++) {
-                if (state.board[i] === player) myPositions.push(i);
-            }
-
-            for (let fi = 0; fi < myPositions.length; fi++) {
-                const from = myPositions[fi];
-                let targets = [];
-                if (phase === PHASE_FLYING) {
-                    for (let i = 0; i < BOARD_SIZE; i++) {
-                        if (state.board[i] === EMPTY) targets.push(i);
-                    }
-                } else {
-                    const neighbors = NEIGHBORS[from];
-                    for (let ni = 0; ni < neighbors.length; ni++) {
-                        if (state.board[neighbors[ni]] === EMPTY) targets.push(neighbors[ni]);
-                    }
-                }
-
-                for (let ti = 0; ti < targets.length; ti++) {
-                    const to = targets[ti];
+            let pieces = playerBits;
+            while (pieces) {
+                const from = ctz(pieces);
+                const targets = phase === PHASE_FLYING
+                    ? emptyBits
+                    : NEIGHBOR_MASKS[from] & emptyBits;
+                let t = targets;
+                while (t) {
+                    const to = ctz(t);
                     moves.push({
                         player,
                         type: phase === PHASE_FLYING ? 'fly' : 'move',
-                        from,
-                        to,
-                        remove: null
+                        from, to, remove: null
                     });
+                    t &= t - 1;
                 }
+                pieces &= pieces - 1;
             }
         }
 
-        // 3. 处理吃子逻辑
-        // removable 在走法生成阶段不依赖具体走法（board 未变动），
-        // 且己方落子不可能改变对手棋子的 mill 状态，故可预计算复用。
+        // ── 处理吃子逻辑 ──
         const finalMoves = [];
-        const board = state.board;
-        let removable = null; // 延迟初始化：仅当成磨走法存在时才计算
+        let removable = null;
 
         for (let mi = 0; mi < moves.length; mi++) {
             const move = moves[mi];
-
-            if (wouldFormMill(board, move.to, player)) {
-                // 首次成磨时计算可吃子列表，后续复用
+            if (wouldFormMillBits(playerBits, move.to)) {
                 if (removable === null) {
                     removable = [];
-                    for (let i = 0; i < BOARD_SIZE; i++) {
-                        if (board[i] === opp && !isInMill(board, i)) {
-                            removable.push(i);
-                        }
+                    let bits = oppBits;
+                    while (bits) {
+                        const pos = ctz(bits);
+                        if (!isInMillBits(oppBits, pos)) removable.push(pos);
+                        bits &= bits - 1;
                     }
-                    if (removable.length === 0) {
-                        for (let i = 0; i < BOARD_SIZE; i++) {
-                            if (board[i] === opp) removable.push(i);
-                        }
+                    if (!removable.length) {
+                        bits = oppBits;
+                        while (bits) { removable.push(ctz(bits)); bits &= bits - 1; }
                     }
                 }
-
                 for (let ri = 0; ri < removable.length; ri++) {
                     finalMoves.push({ player, type: move.type, from: move.from, to: move.to, remove: removable[ri] });
                 }
@@ -458,7 +525,6 @@ const Engine = (() => {
             }
         }
 
-        // 吃子走法优先（加速 alpha-beta 剪枝）
         finalMoves.sort((a, b) => (b.remove !== null ? 1 : 0) - (a.remove !== null ? 1 : 0));
         return finalMoves;
     }
@@ -466,35 +532,33 @@ const Engine = (() => {
     // ==================== 执行走法 ====================
 
     /**
-     * 执行一步棋（支持 UI 和 AI 搜索）
-     * @returns {boolean} true=形成磨坊，调用者需继续执行吃子而非切换回合
+     * 执行一步棋（bitboard 版）
+     * @returns {boolean} true=形成磨坊
      */
     function makeMove(move) {
         if (!move) return null;
 
         const { player, from, to, remove, type } = move;
-        const opp = player === TYPE_OPPONENT ? TYPE_AI : TYPE_OPPONENT;
+        const oppType = player === TYPE_OPPONENT ? TYPE_AI : TYPE_OPPONENT;
         const p = getPlayer(player);
-        const oppP = getPlayer(opp);
+        const oppP = getPlayer(oppType);
 
-        // 记录历史（removedFrom 记录被吃棋子归属，供 undoMove 使用）
-        const historyEntry = { player, type, from, to, remove, removedFrom: type === 'remove' ? opp : null, formedMill: false };
+        const historyEntry = { player, type, from, to, remove, removedFrom: type === 'remove' ? oppType : null, formedMill: false };
 
         // ── 吃子走法 ──
         if (type === 'remove') {
             if (remove !== null) {
-                state.board[remove] = EMPTY;
-                state.posHash = u32(state.posHash - opp * pow3[remove]);
+                if (oppType === TYPE_AI) { state.own &= ~(1 << remove); state.own >>>= 0; }
+                else { state.opp &= ~(1 << remove); state.opp >>>= 0; }
                 oppP.piecesOnBoard--;
                 oppP.piecesLost++;
             }
 
-            state.currentPlayer = opp;
-            state.posHash = u32(state.posHash + opp - player);
+            state.currentPlayer = oppType;
             state.millMove = false;
             state.moveHistory.push(historyEntry);
 
-            pushHash(state.posHash);
+            pushState();
             if (!state.gameOver) checkGameOver();
             return false;
         }
@@ -502,31 +566,35 @@ const Engine = (() => {
         // ── 普通走法（place / move / fly）──
         const formedMill = (() => {
             if (type === 'place') {
-                state.board[to] = player;
-                state.posHash = u32(state.posHash + player * pow3[to]);
+                if (player === TYPE_AI) { state.own |= (1 << to); state.own >>>= 0; }
+                else { state.opp |= (1 << to); state.opp >>>= 0; }
                 p.piecesOnHand--;
                 p.piecesOnBoard++;
             } else {
-                state.board[from] = EMPTY;
-                state.board[to] = player;
-                state.posHash = u32(state.posHash + player * (pow3[to] - pow3[from]));
+                // move/fly: 清除 from，设置 to
+                if (player === TYPE_AI) {
+                    state.own ^= (1 << from) | (1 << to);
+                    state.own >>>= 0;
+                } else {
+                    state.opp ^= (1 << from) | (1 << to);
+                    state.opp >>>= 0;
+                }
             }
-            return isInMill(state.board, to);
+            const bits = player === TYPE_AI ? state.own : state.opp;
+            return isInMillBits(bits, to);
         })();
 
         if (formedMill) {
             state.millMove = true;
         } else {
-            state.currentPlayer = opp;
-            state.posHash = u32(state.posHash + opp - player);
+            state.currentPlayer = oppType;
         }
 
         historyEntry.formedMill = formedMill;
         state.moveHistory.push(historyEntry);
 
-        // 推入位置窗口 + 检查重复 + 检查终局
-        pushHash(state.posHash);
-        checkRepetition(state.posHash);
+        pushState();
+        checkRepetition();
         if (!state.millMove && !state.gameOver) checkGameOver();
 
         return formedMill;
@@ -536,26 +604,21 @@ const Engine = (() => {
         const current = getPlayer(state.currentPlayer);
         const opponent = state.currentPlayer === TYPE_OPPONENT ? TYPE_AI : TYPE_OPPONENT;
 
-        // 场上棋子少于3个且手上无棋子，对手获胜
         if (current.piecesOnBoard < 3 && current.piecesOnHand === 0) {
             state.gameOver = true;
             state.winner = opponent;
             return;
         }
 
-        // PLACEMENT（有手牌）：有空位就能放，不会闷死
-        // FLYING（3子飞行）：有空位就能飞，不会闷死
-        // 只有 MOVE 阶段可能被堵死：所有己方棋子的邻居全被占
         if (getPhase(state.currentPlayer) === PHASE_MOVING) {
-            const board = state.board;
-            const player = state.currentPlayer;
+            const playerBits = getPlayerBits(state.currentPlayer);
+            const emptyBits = ~(state.own | state.opp) & BOARD_MASK;
             let canMove = false;
-            for (let i = 0; i < BOARD_SIZE && !canMove; i++) {
-                if (board[i] !== player) continue;
-                const neighbors = NEIGHBORS[i];
-                for (let j = 0; j < neighbors.length; j++) {
-                    if (board[neighbors[j]] === EMPTY) { canMove = true; break; }
-                }
+            let bits = playerBits;
+            while (bits && !canMove) {
+                const pos = ctz(bits);
+                if (NEIGHBOR_MASKS[pos] & emptyBits) canMove = true;
+                bits &= bits - 1;
             }
             if (!canMove) {
                 state.gameOver = true;
@@ -566,53 +629,53 @@ const Engine = (() => {
 
     // ==================== 撤销走法 ====================
 
-    /** 撤销最后一步棋（makeMove 的镜像，供 AI 深度搜索使用） */
+    /** 撤销最后一步棋（bitboard 版） */
     function undoMove() {
         if (state.moveHistory.length === 0) return;
 
         const entry = state.moveHistory.pop();
         const { player, type, from, to, remove, removedFrom, formedMill } = entry;
-        const opp = player === TYPE_OPPONENT ? TYPE_AI : TYPE_OPPONENT;
+        const oppType = player === TYPE_OPPONENT ? TYPE_AI : TYPE_OPPONENT;
         const p = getPlayer(player);
-        const oppP = getPlayer(opp);
+        const oppP = getPlayer(oppType);
 
-        // ── 吃子走法的撤销 ──
         if (type === 'remove') {
-            popHash();
+            popState();
 
             if (remove !== null) {
-                state.board[remove] = removedFrom || opp;
-                state.posHash = u32(state.posHash + opp * pow3[remove]);
+                if (oppType === TYPE_AI) { state.own |= (1 << remove); state.own >>>= 0; }
+                else { state.opp |= (1 << remove); state.opp >>>= 0; }
                 oppP.piecesOnBoard++;
                 oppP.piecesLost--;
             }
 
             state.currentPlayer = player;
-            state.posHash = u32(state.posHash + player - opp);
             state.millMove = true;
         } else {
-            // ── 普通走法的撤销（place / move / fly）──
-            popHash();
+            popState();
 
             if (type === 'place') {
-                state.board[to] = EMPTY;
-                state.posHash = u32(state.posHash - player * pow3[to]);
+                if (player === TYPE_AI) { state.own &= ~(1 << to); state.own >>>= 0; }
+                else { state.opp &= ~(1 << to); state.opp >>>= 0; }
                 p.piecesOnHand++;
                 p.piecesOnBoard--;
             } else {
-                state.board[from] = player;
-                state.board[to] = EMPTY;
-                state.posHash = u32(state.posHash - player * (pow3[to] - pow3[from]));
+                // move/fly: 恢复 from，清除 to
+                if (player === TYPE_AI) {
+                    state.own ^= (1 << from) | (1 << to);
+                    state.own >>>= 0;
+                } else {
+                    state.opp ^= (1 << from) | (1 << to);
+                    state.opp >>>= 0;
+                }
             }
 
             if (!formedMill) {
                 state.currentPlayer = player;
-                state.posHash = u32(state.posHash + player - opp);
             }
             state.millMove = false;
         }
 
-        // 重置游戏结束状态（AI 搜索不会越过终局）
         state.gameOver = false;
         state.winner = null;
     }
@@ -625,37 +688,56 @@ const Engine = (() => {
         TYPE_AI,            // 2 (黑棋)
         BOARD_SIZE,         // 24 个位置
 
-        // ── 棋盘拓扑 ──
-        NEIGHBORS,          // 每个位置的邻居索引
-        MILLS,              // 16 条磨坊线
+        // ── 棋盘拓扑（兼容导出）──
+        NEIGHBORS,          // 每个位置的邻居索引（数组形式）
+        MILLS,              // 16 条磨坊线（数组形式）
         POSITION_MILLS,     // 每个位置所属的磨坊线索引
 
+        // ── Bitboard 专用 ──
+        MILL_MASKS,         // 16 条 mill 线位掩码
+        NEIGHBOR_MASKS,     // 24 个位置邻居位掩码
+        MILL_WITHOUT,       // 每位置 mill 线去掉自身后的掩码
+
         // ── 游戏阶段 ──
-        PHASE_PLACEMENT,    // 'PLACEMENT' — 手上有棋子
-        PHASE_MOVING,       // 'MOVING'    — 手中无子，场上 >3 子
-        PHASE_FLYING,       // 'FLYING'    — 手中无子，场上 3 子
+        PHASE_PLACEMENT,
+        PHASE_MOVING,
+        PHASE_FLYING,
 
         // ── 游戏生命周期 ──
-        init,               // (config?) 初始化游戏，重置所有状态
+        init,
 
         // ── 状态查询 ──
-        getState,           // () → state 深拷贝
-        getStateView,       // () → state 视图（只读，返回内部引用）
-        getBoard,           // () → board 浅拷贝
-        isGameOver,         // () → boolean
-        getWinner,          // () → TYPE_OPPONENT | TYPE_AI | null
-        getPhase,           // (player) → 'PLACEMENT' | 'MOVING' | 'FLYING'
-        getRepetitionCount, // () → 当前局面在窗口中的重复次数（只读）
+        getState,
+        getStateView,
+        getBoard,           // 兼容接口：返回 24 元素数组
+        isGameOver,
+        getWinner,
+        getPhase,
+        getRepetitionCount,
+
+        // ── Bitboard 查询 ──
+        getOwn: () => state.own,
+        getOpp: () => state.opp,
+        getEmptyBits: () => ~(state.own | state.opp) & BOARD_MASK,
+        getPlayerBits,
 
         // ── 序列化 ──
-        toFen,              // () → MILL-FEN 字符串
-        fromFen,            // (fen) → 恢复局面
+        toFen,
+        fromFen,
 
         // ── 走法核心 ──
-        generateLegalMoves, // (player) → Move[]（含：成磨展开吃子）
-        makeMove,           // (move) → boolean: true=成磨，调用者需触发吃子而非切换回合
-        undoMove,           // () 撤销最后一步（成磨+吃子需调两次）
-        isInMill,           // (board, pos) → boolean（pos 棋子是否在完成的磨坊中）
-        wouldFormMill,      // (board, to, player) → boolean（落子是否会形成磨坊）
+        generateLegalMoves,
+        makeMove,
+        undoMove,
+        isInMill,           // 兼容接口：(board, pos)
+        wouldFormMill,      // 兼容接口：(board, to, player)
+
+        // ── 工具函数（供 evaluator 使用）──
+        ctz,
+        popcount,
+        u32,
+
+        // ── 同步函数（供测试使用）──
+        syncBitsFromBoard,
     };
 })();

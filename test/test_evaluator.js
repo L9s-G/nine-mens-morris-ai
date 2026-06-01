@@ -52,6 +52,7 @@ function setupBoard(config) {
         st.playerAI.piecesOnBoard = config.ai.length;
     }
     if (config.currentPlayer) st.currentPlayer = config.currentPlayer;
+    E.syncBitsFromBoard();  // board → own/opp 同步
     return st;
 }
 
@@ -170,6 +171,7 @@ section('countMobility');
     st.board[0] = E.TYPE_OPPONENT; st.board[1] = E.TYPE_AI;
     st.playerOpponent.piecesOnBoard = 1;
     st.playerAI.piecesOnBoard = 1;
+    E.syncBitsFromBoard();
 
     const mob = EV.countMobility(E.TYPE_OPPONENT);
     assertEq(mob, 22, 'PLACEMENT: mobility = empty count = 22');

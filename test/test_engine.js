@@ -168,6 +168,7 @@ section('generateLegalMoves');
     st.board[23] = E.TYPE_AI; st.board[14] = E.TYPE_AI;
     st.playerOpponent.piecesOnBoard = 4;
     st.playerAI.piecesOnBoard = 4;
+    E.syncBitsFromBoard();
 
     const moves = E.generateLegalMoves(E.TYPE_OPPONENT);
     assert(moves.length > 0, 'MOVING: has moves');
@@ -187,6 +188,7 @@ section('generateLegalMoves');
     st.board[21] = E.TYPE_AI; st.board[22] = E.TYPE_AI; st.board[23] = E.TYPE_AI;
     st.playerOpponent.piecesOnBoard = 3;
     st.playerAI.piecesOnBoard = 3;
+    E.syncBitsFromBoard();
 
     const moves = E.generateLegalMoves(E.TYPE_OPPONENT);
     assert(moves.length > 0, 'FLYING: has moves');
@@ -240,6 +242,7 @@ section('makeMove / undoMove');
     st.board[0] = E.TYPE_OPPONENT; st.board[1] = E.TYPE_AI;
     st.playerOpponent.piecesOnBoard = 1; st.playerAI.piecesOnBoard = 1;
     st.currentPlayer = E.TYPE_OPPONENT;
+    E.syncBitsFromBoard();
 
     const boardBefore = E.getBoard();
     E.makeMove({ player: E.TYPE_OPPONENT, type: 'move', from: 0, to: 9, remove: null });
@@ -307,35 +310,19 @@ section('repetition');
 (() => {
     initState({ opponentHand: 0, aiHand: 0 });
     const st = getState();
-    // 简单局面：各 3 子
     st.board[0] = E.TYPE_OPPONENT; st.board[9] = E.TYPE_OPPONENT; st.board[21] = E.TYPE_OPPONENT;
     st.board[2] = E.TYPE_AI; st.board[14] = E.TYPE_AI; st.board[23] = E.TYPE_AI;
     st.playerOpponent.piecesOnBoard = 3;
     st.playerAI.piecesOnBoard = 3;
     st.currentPlayer = E.TYPE_OPPONENT;
+    E.syncBitsFromBoard();
 
-    // 手动推入 3 次相同的 hash
-    const hash = st.posHash;
-    // 已有 1 次（init 时推入），再推 2 次
-    st.posBuf[st.writeIdx & 31] = hash; st.writeIdx++;
-    st.posBuf[st.writeIdx & 31] = hash; st.writeIdx++;
-
-    // checkRepetition 应该判和
-    const Engine2 = E; // alias
-    // 直接调用内部的 checkRepetition 不行（私有），但可以通过 makeMove 触发
-    // 我们直接测试 getRepetitionCount
-    // 重置后重新测试
-    initState({ opponentHand: 0, aiHand: 0 });
-    const st2 = getState();
-    st2.board[0] = E.TYPE_OPPONENT; st2.board[9] = E.TYPE_OPPONENT; st2.board[21] = E.TYPE_OPPONENT;
-    st2.board[2] = E.TYPE_AI; st2.board[14] = E.TYPE_AI; st2.board[23] = E.TYPE_AI;
-    st2.playerOpponent.piecesOnBoard = 3;
-    st2.playerAI.piecesOnBoard = 3;
-    st2.currentPlayer = E.TYPE_OPPONENT;
-
-    // 推入 3 次
-    st2.posBuf[0] = st2.posHash; st2.posBuf[1] = st2.posHash; st2.posBuf[2] = st2.posHash;
-    st2.writeIdx = 3;
+    // 手动推入 3 次相同的 (own, opp) 到双缓冲区
+    const own = st.own, opp = st.opp;
+    st.posOwn[0] = own; st.posOpp[0] = opp;
+    st.posOwn[1] = own; st.posOpp[1] = opp;
+    st.posOwn[2] = own; st.posOpp[2] = opp;
+    st.writeIdx = 3;
 
     assertEq(E.getRepetitionCount(), 3, 'repetition count = 3');
 })();
