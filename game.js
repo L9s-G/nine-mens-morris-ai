@@ -356,6 +356,14 @@ const Game = (() => {
                 const eat = m.remove != null && m.type !== 'remove' ? `x${m.remove}` : '';
                 return `[${desc}${eat}|${s.score}]`;
             }).join(' ');
+
+            // console 对比：搜索候选 vs AI 最终选择
+            const chosenDecoded = E.decodeMove(result.move);
+            console.log('[AI] ranked:', result.allScores.map(s => {
+                const d = E.decodeMove(s.move);
+                return `${d.type} ${d.from}→${d.to}${d.remove != null ? ' x'+d.remove : ''}(${s.score})`;
+            }).join(', '));
+            console.log('[AI] plays:', `${chosenDecoded.type} ${chosenDecoded.from}→${chosenDecoded.to}${chosenDecoded.remove != null ? ' x'+chosenDecoded.remove : ''}`);
             const timeStr = elapsed >= 1000 ? `${Math.round(elapsed / 1000)}s` : `${Math.round(elapsed)}ms`;
             const nodesStr = nodeCount >= 1000000 ? `${(nodeCount / 1000000).toFixed(1)}M` : nodeCount >= 1000 ? `${Math.round(nodeCount / 1000)}k` : `${nodeCount}`;
             const tp = elapsed > 0 ? Math.round(nodeCount / elapsed) : 0;
