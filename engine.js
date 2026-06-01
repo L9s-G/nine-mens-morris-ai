@@ -590,7 +590,7 @@ const Engine = (() => {
      *   place:  own |= (1 << to)         置位
      *   remove: own &= ~(1 << remove)    清位
      *   move:   own ^= (1<<from)|(1<<to)  翻转两位（from 清零，to 置一）
-     *   >>> 0:  确保结果为无符号 32 位（JS 位运算强制有符号，高位可能变负）
+     *   u32():  确保结果为无符号 32 位（JS 位运算强制有符号，高位可能变负）
      *
      * @returns {boolean} true=形成磨坊，调用者需继续执行吃子而非切换回合
      */
@@ -606,8 +606,8 @@ const Engine = (() => {
         if (type === 'remove') {
             if (remove !== null) {
                 // 清除被吃棋子的 bit
-                if (oppType === TYPE_AI) { state.own &= ~(1 << remove); state.own >>>= 0; }
-                else { state.opp &= ~(1 << remove); state.opp >>>= 0; }
+                if (oppType === TYPE_AI) state.own = u32(state.own & ~(1 << remove));
+                else state.opp = u32(state.opp & ~(1 << remove));
                 oppP.piecesOnBoard--;
                 oppP.piecesLost++;
             }
@@ -623,14 +623,14 @@ const Engine = (() => {
         const formedMill = (() => {
             if (type === 'place') {
                 // 置位：在 to 位置放子
-                if (player === TYPE_AI) { state.own |= (1 << to); state.own >>>= 0; }
-                else { state.opp |= (1 << to); state.opp >>>= 0; }
+                if (player === TYPE_AI) state.own = u32(state.own | (1 << to));
+                else state.opp = u32(state.opp | (1 << to));
                 p.piecesOnHand--;
                 p.piecesOnBoard++;
             } else {
                 // 翻转两位：from 清零 + to 置一（一条 XOR 指令完成）
-                if (player === TYPE_AI) { state.own ^= (1 << from) | (1 << to); state.own >>>= 0; }
-                else { state.opp ^= (1 << from) | (1 << to); state.opp >>>= 0; }
+                if (player === TYPE_AI) state.own = u32(state.own ^ ((1 << from) | (1 << to)));
+                else state.opp = u32(state.opp ^ ((1 << from) | (1 << to)));
             }
             // 检查落子后是否成 mill
             return isInMillBits(player === TYPE_AI ? state.own : state.opp, to);
@@ -705,8 +705,8 @@ const Engine = (() => {
             popState();  // 弹出重复检测窗口
             if (remove !== null) {
                 // 恢复被吃棋子：置位
-                if (oppType === TYPE_AI) { state.own |= (1 << remove); state.own >>>= 0; }
-                else { state.opp |= (1 << remove); state.opp >>>= 0; }
+                if (oppType === TYPE_AI) state.own = u32(state.own | (1 << remove));
+                else state.opp = u32(state.opp | (1 << remove));
                 oppP.piecesOnBoard++;
                 oppP.piecesLost--;
             }
@@ -716,14 +716,14 @@ const Engine = (() => {
             popState();
             if (type === 'place') {
                 // 撤销放置：清位
-                if (player === TYPE_AI) { state.own &= ~(1 << to); state.own >>>= 0; }
-                else { state.opp &= ~(1 << to); state.opp >>>= 0; }
+                if (player === TYPE_AI) state.own = u32(state.own & ~(1 << to));
+                else state.opp = u32(state.opp & ~(1 << to));
                 p.piecesOnHand++;
                 p.piecesOnBoard--;
             } else {
                 // 撤销移动：翻转两位（XOR 自逆）
-                if (player === TYPE_AI) { state.own ^= (1 << from) | (1 << to); state.own >>>= 0; }
-                else { state.opp ^= (1 << from) | (1 << to); state.opp >>>= 0; }
+                if (player === TYPE_AI) state.own = u32(state.own ^ ((1 << from) | (1 << to)));
+                else state.opp = u32(state.opp ^ ((1 << from) | (1 << to)));
             }
             if (!formedMill) state.currentPlayer = player;
             state.millMove = false;
