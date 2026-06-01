@@ -116,13 +116,39 @@ const Searcher = (() => {
                 if (timedOut) break;
 
                 const move = bestScores.length > 0 ? bestScores[i].move : moves[i];
+                const ownBefore = E.getOwn(), oppBefore = E.getOpp();
                 const formedMill = E.makeMove(move);
+                const ownAfter = E.getOwn(), oppAfter = E.getOpp();
                 const ctx = { player, move, formedMill };
                 const nextIsMax = formedMill ? isAI : !isAI;
                 const nextDepth = formedMill ? d : d - 1;
                 let score = minimax(nextDepth, -Infinity, Infinity, nextIsMax, ctx);
                 if (!isAI) score = -score;
                 E.undoMove();
+                const ownUndo = E.getOwn(), oppUndo = E.getOpp();
+
+                // 验证 undo 完整性
+                if (ownBefore !== ownUndo || oppBefore !== oppUndo) {
+                    console.error('[SEARCH BUG] undo mismatch! move=' + move +
+                        ' own:' + ownBefore + '→' + ownAfter + '→' + ownUndo +
+                        ' opp:' + oppBefore + '→' + oppAfter + '→' + oppUndo);
+                }
+
+                // 验证 move 编码与实际效果一致
+                const decFrom = move & 0x1F;
+                const decTo = (move >> 5) & 0x1F;
+                const decRemove = (move >> 10) & 0x1F;
+                const decType = (move >> 15) & 3;
+                if (decType === 1) { // move type
+                    const expectedOwn = ((ownBefore ^ ((1 << decFrom) | (1 << decTo))) >>> 0);
+                    const expectedOpp = decRemove !== 31 ? ((oppBefore & ~(1 << decRemove)) >>> 0) : oppBefore;
+                    if (ownAfter !== expectedOwn || oppAfter !== expectedOpp) {
+                        console.error('[SEARCH BUG] move effect mismatch! move=' + move +
+                            ' decoded: ' + decFrom + '→' + decTo + ' x' + decRemove +
+                            ' own:' + ownBefore + '→' + ownAfter + '(exp:' + expectedOwn + ')' +
+                            ' opp:' + oppBefore + '→' + oppAfter + '(exp:' + expectedOpp + ')');
+                    }
+                }
 
                 if (timedOut) break;
                 results.push({ move, score });
