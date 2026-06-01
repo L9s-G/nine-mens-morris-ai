@@ -182,8 +182,10 @@ const AI = (() => {
      * @param {object|null} move - 刚执行的走法（用于吃子价值评估）
      */
     function evaluatePosition(move) {
-        const ctx = move ? { player: move.player, move } : null;
-        return Evaluator.evaluate(0, ctx);
+        if (!move && move !== 0) return Evaluator.evaluate(0, null);
+        // 从编码整数提取 player：bit 17
+        const player = (move >> 17) & 1 ? Engine.TYPE_AI : Engine.TYPE_OPPONENT;
+        return Evaluator.evaluate(0, { player, move });
     }
 
     // ==================== 初始化 ====================

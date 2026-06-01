@@ -143,7 +143,7 @@ const Game = (() => {
     let selectedPos = null;   // 当前选中的棋子位置
     let legalTargets = [];    // 当前选中棋子的合法目标
     let currentLegalPlayer = null;
-    let playerMoves = [];     // 当前玩家的合法走法
+    let playerMoves = [];     // 当前玩家的合法走法（解码后的对象数组）
     let isAIThinking = false;
     let debugMode = false;    // Debug 模式开关
 
@@ -210,7 +210,7 @@ const Game = (() => {
 
     function selectPiece(pos) {
         selectedPos = pos;
-        playerMoves = E.generateLegalMoves(E.TYPE_OPPONENT);
+        playerMoves = E.generateLegalMoves(E.TYPE_OPPONENT).map(E.decodeMove);
         legalTargets = playerMoves
             .filter(m => m.from === pos)
             .map(m => m.to);
@@ -229,7 +229,10 @@ const Game = (() => {
         renderBoard();
     }
 
-    async function animateAndExecute(move) {
+    async function animateAndExecute(encodedMove) {
+        // 解码整数 move 为对象（仅 UI 层需要属性访问）
+        const move = E.decodeMove(encodedMove);
+
         // 放置 / 走子 / 飞行：从起点滑动到终点
         if (move.type === 'place' || move.type === 'move' || move.type === 'fly') {
             const isWhite = move.player === E.TYPE_OPPONENT;
@@ -237,7 +240,6 @@ const Game = (() => {
 
             let x1, y1;
             if (move.type === 'place') {
-                // 从棋盘上方落入
                 x1 = x2;
                 y1 = 0;
             } else {
@@ -261,7 +263,7 @@ const Game = (() => {
             anim.remove();
         }
 
-        // 吃子动画：闪烁 + 缩小消失（仅在实际吃子时播放）
+        // 吃子动画
         if (move.type === 'remove' && move.remove !== null && move.remove >= 0) {
             const target = svgPieces.querySelector(`[data-pos="${move.remove}"]`);
             if (target) {
@@ -270,7 +272,7 @@ const Game = (() => {
             }
         }
 
-        E.makeMove(move);
+        E.makeMove(encodedMove);
         resetSelection();
         renderBoard();
     }
@@ -288,7 +290,7 @@ const Game = (() => {
 
         // 如果成行需要吃子，等待玩家操作（engine 已切换到 millMove）
         if (E.getStateView().millMove && E.getStateView().currentPlayer === E.TYPE_OPPONENT) {
-            playerMoves = E.generateLegalMoves(E.TYPE_OPPONENT);
+            playerMoves = E.generateLegalMoves(E.TYPE_OPPONENT).map(E.decodeMove);
             if (playerMoves.length === 0) {
                 showGameResult();
                 return;
@@ -378,7 +380,7 @@ const Game = (() => {
         }
 
         // 回到玩家回合
-        playerMoves = E.generateLegalMoves(E.TYPE_OPPONENT);
+        playerMoves = E.generateLegalMoves(E.TYPE_OPPONENT).map(E.decodeMove);
         updateStatus();
 
         if (E.getStateView().millMove) {
@@ -798,7 +800,7 @@ const Game = (() => {
             doAITurn();
         } else {
             setMessage('轮到你，放置棋子');
-            playerMoves = E.generateLegalMoves(E.TYPE_OPPONENT);
+            playerMoves = E.generateLegalMoves(E.TYPE_OPPONENT).map(E.decodeMove);
         }
     }
 
@@ -840,7 +842,7 @@ const Game = (() => {
             try {
                 E.fromFen(savedFen);
                 resetUI();
-                playerMoves = E.generateLegalMoves(E.TYPE_OPPONENT);
+                playerMoves = E.generateLegalMoves(E.TYPE_OPPONENT).map(E.decodeMove);
                 if (playerMoves.length === 0) throw new Error('terminal position');
                 if (E.getStateView().millMove) {
                     setMessage('选择对手棋子吃掉');

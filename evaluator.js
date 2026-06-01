@@ -247,7 +247,8 @@ const Evaluator = (() => {
         let score = 0;
 
         // ── 吃子价值 ──
-        if (ctx && ctx.move && ctx.move.remove !== null) {
+        // ctx.move 是编码整数：remove 字段在 bit 10-14，MOVE_NONE=31 表示无吃子
+        if (ctx && ctx.move != null && ((ctx.move >> 10) & 0x1F) !== E.MOVE_NONE) {
             const mover = ctx.player;
             const opp = mover === E.TYPE_AI ? E.TYPE_OPPONENT : E.TYPE_AI;
             const oppData = opp === E.TYPE_AI ? state.playerAI : state.playerOpponent;

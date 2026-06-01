@@ -23,6 +23,21 @@ function section(name) { console.log(`\n--- ${name} ---`); }
 
 // ==================== 辅助函数 ====================
 
+/** 快捷编码：mk(TYPE_OPPONENT, 'place', -1, 5) → encoded integer */
+function mk(player, type, from, to, remove) {
+    return E.encodeMove(player, E.TYPE_ENCODE[type], from, to, remove);
+}
+
+/** 解码 move 的 remove 字段是否为 null */
+function moveRemoveNull(m) {
+    return ((m >> 10) & 0x1F) === E.MOVE_NONE;
+}
+
+/** 解码 move 的 type 字段（返回字符串） */
+function moveType(m) {
+    return E.TYPE_DECODE[(m >> 15) & 3];
+}
+
 /** 设置棋盘：ai=[pos,...], opp=[pos,...] */
 function setupBoard(ai, opp) {
     E.init({ opponentHand: 0, aiHand: 0 });
@@ -156,14 +171,14 @@ section('generateLegalMoves');
     E.init();
     const moves = E.generateLegalMoves(E.TYPE_OPPONENT);
     assertEq(moves.length, 24, 'PLACEMENT: 24 empty positions');
-    assert(moves.every(m => m.type === 'place'), 'PLACEMENT: all type=place');
-    assert(moves.every(m => m.remove === null), 'PLACEMENT: all remove=null');
+    assert(moves.every(m => moveType(m) === 'place'), 'PLACEMENT: all type=place');
+    assert(moves.every(m => moveRemoveNull(m)), 'PLACEMENT: all remove=null');
 })();
 
 // PLACEMENT 阶段有棋子
 (() => {
     E.init();
-    E.makeMove({ player: E.TYPE_OPPONENT, type: 'place', from: -1, to: 0, remove: null });
+    E.makeMove(mk(E.TYPE_OPPONENT, 'place', -1, 0));
     const moves = E.generateLegalMoves(E.TYPE_AI);
     assertEq(moves.length, 23, 'PLACEMENT with 1 piece: 23 moves');
 })();
@@ -173,7 +188,7 @@ section('generateLegalMoves');
     const st = setupBoard([21, 22, 23, 14], [0, 1, 2, 3]);
     const moves = E.generateLegalMoves(E.TYPE_OPPONENT);
     assert(moves.length > 0, 'MOVING: has moves');
-    assert(moves.every(m => m.type === 'move'), 'MOVING: all type=move');
+    assert(moves.every(m => moveType(m) === 'move'), 'MOVING: all type=move');
 })();
 
 // FLYING 阶段
@@ -181,25 +196,25 @@ section('generateLegalMoves');
     const st = setupBoard([21, 22, 23], [0, 1, 2]);
     const moves = E.generateLegalMoves(E.TYPE_OPPONENT);
     assert(moves.length > 0, 'FLYING: has moves');
-    assert(moves.every(m => m.type === 'fly'), 'FLYING: all type=fly');
+    assert(moves.every(m => moveType(m) === 'fly'), 'FLYING: all type=fly');
     assertEq(moves.length, 54, 'FLYING: 3 pieces * 18 empty = 54 moves');
 })();
 
 // millMove 状态：只生成 remove moves
 (() => {
     E.init();
-    E.makeMove({ player: E.TYPE_OPPONENT, type: 'place', from: -1, to: 0, remove: null });
-    E.makeMove({ player: E.TYPE_AI, type: 'place', from: -1, to: 21, remove: null });
-    E.makeMove({ player: E.TYPE_OPPONENT, type: 'place', from: -1, to: 1, remove: null });
-    E.makeMove({ player: E.TYPE_AI, type: 'place', from: -1, to: 22, remove: null });
-    const formedMill = E.makeMove({ player: E.TYPE_OPPONENT, type: 'place', from: -1, to: 2, remove: null });
+    E.makeMove(mk(E.TYPE_OPPONENT, 'place', -1, 0));
+    E.makeMove(mk(E.TYPE_AI, 'place', -1, 21));
+    E.makeMove(mk(E.TYPE_OPPONENT, 'place', -1, 1));
+    E.makeMove(mk(E.TYPE_AI, 'place', -1, 22));
+    const formedMill = E.makeMove(mk(E.TYPE_OPPONENT, 'place', -1, 2));
     assert(formedMill, 'place 2 formed mill');
     assert(E.getStateView().millMove, 'millMove is true');
 
     const moves = E.generateLegalMoves(E.TYPE_OPPONENT);
     assert(moves.length > 0, 'millMove: has remove moves');
-    assert(moves.every(m => m.type === 'remove'), 'millMove: all type=remove');
-    assert(moves.every(m => m.remove >= 0), 'millMove: all have remove pos');
+    assert(moves.every(m => moveType(m) === 'remove'), 'millMove: all type=remove');
+    assert(moves.every(m => !moveRemoveNull(m)), 'millMove: all have remove pos');
 })();
 
 // ==================== 4. makeMove / undoMove ====================
@@ -209,7 +224,7 @@ section('makeMove / undoMove');
 (() => {
     E.init();
     const before = E.getState();
-    E.makeMove({ player: E.TYPE_OPPONENT, type: 'place', from: -1, to: 5, remove: null });
+    E.makeMove(mk(E.TYPE_OPPONENT, 'place', -1, 5));
     E.undoMove();
     const after = E.getState();
     assertEq(after.own, before.own, 'place→undo own');
@@ -223,7 +238,7 @@ section('makeMove / undoMove');
     setupBoard([1], [0]);
     E.getStateView().currentPlayer = E.TYPE_OPPONENT;
     const before = E.getState();
-    E.makeMove({ player: E.TYPE_OPPONENT, type: 'move', from: 0, to: 9, remove: null });
+    E.makeMove(mk(E.TYPE_OPPONENT, 'move', 0, 9));
     E.undoMove();
     const after = E.getState();
     assertEq(after.own, before.own, 'move→undo own');
@@ -233,14 +248,14 @@ section('makeMove / undoMove');
 // place + remove → undo × 2
 (() => {
     E.init();
-    E.makeMove({ player: E.TYPE_OPPONENT, type: 'place', from: -1, to: 0, remove: null });
-    E.makeMove({ player: E.TYPE_AI, type: 'place', from: -1, to: 21, remove: null });
-    E.makeMove({ player: E.TYPE_OPPONENT, type: 'place', from: -1, to: 1, remove: null });
-    E.makeMove({ player: E.TYPE_AI, type: 'place', from: -1, to: 22, remove: null });
-    E.makeMove({ player: E.TYPE_OPPONENT, type: 'place', from: -1, to: 2, remove: null }); // forms mill
+    E.makeMove(mk(E.TYPE_OPPONENT, 'place', -1, 0));
+    E.makeMove(mk(E.TYPE_AI, 'place', -1, 21));
+    E.makeMove(mk(E.TYPE_OPPONENT, 'place', -1, 1));
+    E.makeMove(mk(E.TYPE_AI, 'place', -1, 22));
+    E.makeMove(mk(E.TYPE_OPPONENT, 'place', -1, 2)); // forms mill
 
     const oppBefore = E.getOpp();
-    E.makeMove({ player: E.TYPE_OPPONENT, type: 'remove', from: -1, to: -1, remove: 21 });
+    E.makeMove(mk(E.TYPE_OPPONENT, 'remove', -1, -1, 21));
     assert((E.getOwn() & (1 << 21)) === 0, 'removed AI piece at 21');
 
     E.undoMove(); // undo remove
@@ -254,7 +269,7 @@ section('makeMove / undoMove');
 (() => {
     E.init();
     const before = E.getState();
-    E.makeMove({ player: E.TYPE_OPPONENT, type: 'place', from: -1, to: 23, remove: null });
+    E.makeMove(mk(E.TYPE_OPPONENT, 'place', -1, 23));
     assert((E.getOpp() & (1 << 23)) !== 0, 'placed at 23');
     E.undoMove();
     assert((E.getOpp() & (1 << 23)) === 0, 'undo place at 23');
@@ -265,10 +280,10 @@ section('makeMove / undoMove');
 (() => {
     E.init();
     const before = E.getState();
-    E.makeMove({ player: E.TYPE_OPPONENT, type: 'place', from: -1, to: 0, remove: null });
-    E.makeMove({ player: E.TYPE_AI, type: 'place', from: -1, to: 21, remove: null });
-    E.makeMove({ player: E.TYPE_OPPONENT, type: 'place', from: -1, to: 1, remove: null });
-    E.makeMove({ player: E.TYPE_AI, type: 'place', from: -1, to: 22, remove: null });
+    E.makeMove(mk(E.TYPE_OPPONENT, 'place', -1, 0));
+    E.makeMove(mk(E.TYPE_AI, 'place', -1, 21));
+    E.makeMove(mk(E.TYPE_OPPONENT, 'place', -1, 1));
+    E.makeMove(mk(E.TYPE_AI, 'place', -1, 22));
     E.undoMove();
     E.undoMove();
     E.undoMove();
@@ -309,9 +324,9 @@ section('toFen / fromFen');
 // 有棋子 roundtrip
 (() => {
     E.init();
-    E.makeMove({ player: E.TYPE_OPPONENT, type: 'place', from: -1, to: 0, remove: null });
-    E.makeMove({ player: E.TYPE_AI, type: 'place', from: -1, to: 23, remove: null });
-    E.makeMove({ player: E.TYPE_OPPONENT, type: 'place', from: -1, to: 1, remove: null });
+    E.makeMove(mk(E.TYPE_OPPONENT, 'place', -1, 0));
+    E.makeMove(mk(E.TYPE_AI, 'place', -1, 23));
+    E.makeMove(mk(E.TYPE_OPPONENT, 'place', -1, 1));
     const fen = E.toFen();
     const before = E.getState();
     E.fromFen(fen);
@@ -324,7 +339,7 @@ section('toFen / fromFen');
 // 高位位置 23
 (() => {
     E.init();
-    E.makeMove({ player: E.TYPE_OPPONENT, type: 'place', from: -1, to: 23, remove: null });
+    E.makeMove(mk(E.TYPE_OPPONENT, 'place', -1, 23));
     const fen = E.toFen();
     E.fromFen(fen);
     assert((E.getOpp() & (1 << 23)) !== 0, 'fen pos 23 preserved');

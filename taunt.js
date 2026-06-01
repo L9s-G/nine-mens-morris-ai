@@ -39,7 +39,7 @@ const Taunt = (() => {
             },
             mills: { ai: aiMills, opponent: oppMills },
             mobility: { ai: EV.countMobility(E.TYPE_AI), opponent: EV.countMobility(E.TYPE_OPPONENT) },
-            move: move ? { type: move.type, from: move.from, to: move.to, remove: move.remove, formedMill: state.millMove } : null,
+            move: move != null ? (() => { const m = E.decodeMove(move); m.formedMill = state.millMove; return m; })() : null,
             score,
             repetition: E.getRepetitionCount(),
             phaseBefore: null,

@@ -242,6 +242,42 @@ const Engine = (() => {
         return count;
     }
 
+    // ==================== 走法整数编码 ====================
+    // 18 位编码，消除 move 对象分配（每个搜索节点节省 10-30 个对象 GC）
+    //
+    // bit 0-4:   from   (0-23, 31=unused)
+    // bit 5-9:   to     (0-23, 31=unused)
+    // bit 10-14: remove (0-23, 31=none)
+    // bit 15-16: type   (0=place, 1=move, 2=fly, 3=remove)
+    // bit 17:    player (0=OPPONENT, 1=AI)
+
+    const MT_PLACE = 0, MT_MOVE = 1, MT_FLY = 2, MT_REMOVE = 3;
+    const MOVE_NONE = 31;  // remove 字段的 null 等价
+
+    /** 编码：将走法字段打包为 18 位整数。 */
+    function encodeMove(player, type, from, to, remove) {
+        const f = from < 0 ? MOVE_NONE : from;
+        const t = to < 0 ? MOVE_NONE : to;
+        const r = remove == null ? MOVE_NONE : remove;
+        return f | (t << 5) | (r << 10) | (type << 15) | ((player === TYPE_AI ? 1 : 0) << 17);
+    }
+
+    /** 解码：将 18 位整数还原为走法对象（仅 game.js 等外部调用方使用）。 */
+    function decodeMove(m) {
+        const r = (m >> 10) & 0x1F;
+        return {
+            from:   m & 0x1F,
+            to:     (m >> 5) & 0x1F,
+            remove: r === MOVE_NONE ? null : r,
+            type:   (m >> 15) & 3,
+            player: (m >> 17) & 1 ? TYPE_AI : TYPE_OPPONENT,
+        };
+    }
+
+    // 类型编码映射（字符串 → 整数）
+    const TYPE_ENCODE = { place: MT_PLACE, move: MT_MOVE, fly: MT_FLY, remove: MT_REMOVE };
+    const TYPE_DECODE = ['place', 'move', 'fly', 'remove'];
+
     // ==================== 内部状态 ====================
     let state = null;
 
@@ -484,15 +520,15 @@ const Engine = (() => {
      */
     function generateLegalMoves(player) {
         const moves = [];
+        const playerBit = player === TYPE_AI ? 1 : 0;
         const oppType = player === TYPE_OPPONENT ? TYPE_AI : TYPE_OPPONENT;
         const playerBits = getPlayerBits(player);
         const oppBits = getPlayerBits(oppType);
         const emptyBits = ~(state.own | state.opp) & BOARD_MASK;
         const phase = getPhase(player);
 
-        // ── 吃子阶段：millMove=true 时只能执行吃子走法 ──
+        // ── 吃子阶段 ──
         if (state.millMove) {
-            // 构建可吃子位掩码：不在 mill 中的对手棋子
             let remBits = 0;
             let bits = oppBits;
             while (bits) {
@@ -500,44 +536,36 @@ const Engine = (() => {
                 if (!isInMillBits(oppBits, pos)) remBits |= (1 << pos);
                 bits &= bits - 1;
             }
-            // 如果对手所有棋子都在磨坊中，可吃任意一子
             if (!remBits) remBits = oppBits;
-
-            // 展开为 remove moves
             bits = remBits;
             while (bits) {
-                moves.push({ player, type: 'remove', from: -1, to: -1, remove: ctz(bits) });
+                moves.push(encodeMove(player, MT_REMOVE, MOVE_NONE, MOVE_NONE, ctz(bits)));
                 bits &= bits - 1;
             }
             return moves;
         }
 
-        // ── 放置阶段：遍历所有空位 ──
+        // ── 放置阶段 ──
         if (phase === PHASE_PLACEMENT) {
             let bits = emptyBits;
             while (bits) {
                 const to = ctz(bits);
-                moves.push({ player, type: 'place', from: -1, to, remove: null });
+                moves.push(encodeMove(player, MT_PLACE, MOVE_NONE, to, null));
                 bits &= bits - 1;
             }
         }
-        // ── 移动/飞行阶段：遍历己方棋子 → 遍历目标 ──
+        // ── 移动/飞行阶段 ──
         else {
             let pieces = playerBits;
             while (pieces) {
                 const from = ctz(pieces);
-                // MOVING: 只能移到相邻空位；FLYING: 可飞到任意空位
                 const targets = phase === PHASE_FLYING
                     ? emptyBits
                     : NEIGHBOR_MASKS[from] & emptyBits;
                 let t = targets;
                 while (t) {
                     const to = ctz(t);
-                    moves.push({
-                        player,
-                        type: phase === PHASE_FLYING ? 'fly' : 'move',
-                        from, to, remove: null
-                    });
+                    moves.push(encodeMove(player, phase === PHASE_FLYING ? MT_FLY : MT_MOVE, from, to, null));
                     t &= t - 1;
                 }
                 pieces &= pieces - 1;
@@ -545,39 +573,45 @@ const Engine = (() => {
         }
 
         // ── 成磨展开吃子 ──
-        // removable 延迟初始化：仅当成磨走法存在时才计算可吃子列表
-        const finalMoves = [];
-        let removable = null;
+        let hasMill = false;
         for (let mi = 0; mi < moves.length; mi++) {
-            const move = moves[mi];
-            if (wouldFormMillBits(playerBits, move.to)) {
-                // 首次成磨时计算可吃子列表，后续复用
-                if (removable === null) {
-                    removable = [];
-                    let bits = oppBits;
-                    while (bits) {
-                        const pos = ctz(bits);
-                        if (!isInMillBits(oppBits, pos)) removable.push(pos);
-                        bits &= bits - 1;
-                    }
-                    // 全在 mill 中 → 允许吃任意子
-                    if (!removable.length) {
-                        bits = oppBits;
-                        while (bits) { removable.push(ctz(bits)); bits &= bits - 1; }
-                    }
-                }
-                // 为每个可吃子生成一条独立 Move
-                for (let ri = 0; ri < removable.length; ri++) {
-                    finalMoves.push({ player, type: move.type, from: move.from, to: move.to, remove: removable[ri] });
-                }
-            } else {
-                finalMoves.push(move);
-            }
+            const m = moves[mi];
+            const to = (m >> 5) & 0x1F;
+            if (wouldFormMillBits(playerBits, to)) { hasMill = true; break; }
         }
 
-        // 吃子走法排前面（加速 alpha-beta 剪枝）
-        finalMoves.sort((a, b) => (b.remove !== null ? 1 : 0) - (a.remove !== null ? 1 : 0));
-        return finalMoves;
+        if (hasMill) {
+            let remBits = 0;
+            let bits = oppBits;
+            while (bits) {
+                const pos = ctz(bits);
+                if (!isInMillBits(oppBits, pos)) remBits |= (1 << pos);
+                bits &= bits - 1;
+            }
+            if (!remBits) remBits = oppBits;
+
+            const result = [];
+            for (let mi = 0; mi < moves.length; mi++) {
+                const m = moves[mi];
+                const mType = (m >> 15) & 3;
+                const mFrom = m & 0x1F;
+                const mTo = (m >> 5) & 0x1F;
+                if (wouldFormMillBits(playerBits, mTo)) {
+                    let rb = remBits;
+                    while (rb) {
+                        result.push(encodeMove(player, mType, mFrom, mTo, ctz(rb)));
+                        rb &= rb - 1;
+                    }
+                } else {
+                    result.push(m);
+                }
+            }
+            result.sort((a, b) => ((b >> 10) & 0x1F) - ((a >> 10) & 0x1F));
+            return result;
+        }
+
+        moves.sort((a, b) => ((b >> 10) & 0x1F) - ((a >> 10) & 0x1F));
+        return moves;
     }
 
     // ==================== 执行走法 ====================
@@ -594,19 +628,26 @@ const Engine = (() => {
      * @returns {boolean} true=形成磨坊，调用者需继续执行吃子而非切换回合
      */
     function makeMove(move) {
-        if (!move) return null;
-        const { player, from, to, remove, type } = move;
+        if (!move && move !== 0) return null;
+
+        // 解码 18 位整数
+        const from   = move & 0x1F;
+        const to     = (move >> 5) & 0x1F;
+        const remove = (move >> 10) & 0x1F;
+        const type   = (move >> 15) & 3;
+        const player = (move >> 17) & 1 ? TYPE_AI : TYPE_OPPONENT;
+        const removeVal = remove === MOVE_NONE ? null : remove;
+
         const oppType = player === TYPE_OPPONENT ? TYPE_AI : TYPE_OPPONENT;
         const p = getPlayer(player);
         const oppP = getPlayer(oppType);
-        const historyEntry = { player, type, from, to, remove, removedFrom: type === 'remove' ? oppType : null, formedMill: false };
+        const historyEntry = { move, removedFrom: type === MT_REMOVE ? oppType : null, formedMill: false };
 
         // ── 吃子走法 ──
-        if (type === 'remove') {
-            if (remove !== null) {
-                // 清除被吃棋子的 bit
-                if (oppType === TYPE_AI) state.own = u32(state.own & ~(1 << remove));
-                else state.opp = u32(state.opp & ~(1 << remove));
+        if (type === MT_REMOVE) {
+            if (removeVal !== null) {
+                if (oppType === TYPE_AI) state.own = u32(state.own & ~(1 << removeVal));
+                else state.opp = u32(state.opp & ~(1 << removeVal));
                 oppP.piecesOnBoard--;
                 oppP.piecesLost++;
             }
@@ -620,7 +661,7 @@ const Engine = (() => {
 
         // ── 普通走法（place / move / fly）──
         const formedMill = (() => {
-            if (type === 'place') {
+            if (type === MT_PLACE) {
                 // 置位：在 to 位置放子
                 if (player === TYPE_AI) state.own = u32(state.own | (1 << to));
                 else state.opp = u32(state.opp | (1 << to));
@@ -695,32 +736,38 @@ const Engine = (() => {
     function undoMove() {
         if (state.moveHistory.length === 0) return;
         const entry = state.moveHistory.pop();
-        const { player, type, from, to, remove, removedFrom, formedMill } = entry;
+        const { move, removedFrom, formedMill } = entry;
+
+        // 解码
+        const from   = move & 0x1F;
+        const to     = (move >> 5) & 0x1F;
+        const remove = (move >> 10) & 0x1F;
+        const type   = (move >> 15) & 3;
+        const player = (move >> 17) & 1 ? TYPE_AI : TYPE_OPPONENT;
+        const removeVal = remove === MOVE_NONE ? null : remove;
+
         const oppType = player === TYPE_OPPONENT ? TYPE_AI : TYPE_OPPONENT;
         const p = getPlayer(player);
         const oppP = getPlayer(oppType);
 
-        if (type === 'remove') {
-            popState();  // 弹出重复检测窗口
-            if (remove !== null) {
-                // 恢复被吃棋子：置位
-                if (oppType === TYPE_AI) state.own = u32(state.own | (1 << remove));
-                else state.opp = u32(state.opp | (1 << remove));
+        if (type === MT_REMOVE) {
+            popState();
+            if (removeVal !== null) {
+                if (oppType === TYPE_AI) state.own = u32(state.own | (1 << removeVal));
+                else state.opp = u32(state.opp | (1 << removeVal));
                 oppP.piecesOnBoard++;
                 oppP.piecesLost--;
             }
             state.currentPlayer = player;
-            state.millMove = true;  // 恢复到吃子前的状态
+            state.millMove = true;
         } else {
             popState();
-            if (type === 'place') {
-                // 撤销放置：清位
+            if (type === MT_PLACE) {
                 if (player === TYPE_AI) state.own = u32(state.own & ~(1 << to));
                 else state.opp = u32(state.opp & ~(1 << to));
                 p.piecesOnHand++;
                 p.piecesOnBoard--;
             } else {
-                // 撤销移动：翻转两位（XOR 自逆）
                 if (player === TYPE_AI) state.own = u32(state.own ^ ((1 << from) | (1 << to)));
                 else state.opp = u32(state.opp ^ ((1 << from) | (1 << to)));
             }
@@ -770,10 +817,18 @@ const Engine = (() => {
         toFen,              // () → MILL-FEN JSON 字符串
         fromFen,            // (fen) → 恢复局面
 
+        // ── 走法编码 ──
+        encodeMove,         // (player, type, from, to, remove) → number
+        decodeMove,         // (number) → { player, type, from, to, remove }
+        MOVE_NONE,          // 31（remove 字段的 null 等价）
+        MT_PLACE, MT_MOVE, MT_FLY, MT_REMOVE,  // 类型常量
+        TYPE_ENCODE,        // { place:0, move:1, fly:2, remove:3 }
+        TYPE_DECODE,        // ['place','move','fly','remove']
+
         // ── 走法核心 ──
-        generateLegalMoves, // (player) → Move[]（含：成磨展开吃子）
-        makeMove,           // (move) → boolean: true=成磨，需继续吃子
-        undoMove,           // () 撤销最后一步（成磨+吃子需调两次）
+        generateLegalMoves, // (player) → number[]（编码整数数组）
+        makeMove,           // (encodedMove) → boolean: true=成磨
+        undoMove,           // () 撤销最后一步
 
         // ── 位运算工具（供 evaluator 使用）──
         ctz,                // (x) → 最低位 1 的位置索引
