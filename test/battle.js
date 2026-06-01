@@ -27,14 +27,14 @@ sandbox.Worker = class {
         try {
             const st = sandbox.Engine.getStateView();
             const savedWIdx = st.writeIdx;
-            const savedBuf = new Uint32Array(st.posBuf);
-            const savedHash = st.posHash;
+            const savedOwn = new Float64Array(st.posOwn);
+            const savedOpp = new Float64Array(st.posOpp);
             sandbox.Engine.fromFen(data.fen);
             const result = sandbox.Searcher.search(data.player, data.depth, data.timeLimit);
             const st2 = sandbox.Engine.getStateView();
             st2.writeIdx = savedWIdx;
-            st2.posBuf.set(savedBuf);
-            st2.posHash = savedHash;
+            st2.posOwn.set(savedOwn);
+            st2.posOpp.set(savedOpp);
             if (this.onmessage) this.onmessage({ data: { success: true, result } });
         } catch (error) {
             if (this.onmessage) this.onmessage({ data: { success: false, error: error.message } });
@@ -182,7 +182,7 @@ async function runBattle() {
             logSideBySide(bLines, iLines);
             log(`FEN: ${Engine.toFen()}`);
             const sv = Engine.getStateView();
-            log(`HASH: ${sv.posHash} | buf[${(sv.writeIdx - 1) & 31}]=${sv.posBuf[(sv.writeIdx - 1) & 31]} | wIdx=${sv.writeIdx}`);
+            log(`own=${sv.own} opp=${sv.opp} | buf[${(sv.writeIdx - 1) & 31}]=(${sv.posOwn[(sv.writeIdx - 1) & 31]},${sv.posOpp[(sv.writeIdx - 1) & 31]}) | wIdx=${sv.writeIdx}`);
             log('');
         }
 
