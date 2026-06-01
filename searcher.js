@@ -116,60 +116,13 @@ const Searcher = (() => {
                 if (timedOut) break;
 
                 const move = bestScores.length > 0 ? bestScores[i].move : moves[i];
-                const ownBefore = E.getOwn(), oppBefore = E.getOpp();
                 const formedMill = E.makeMove(move);
-                const ownAfter = E.getOwn(), oppAfter = E.getOpp();
                 const ctx = { player, move, formedMill };
                 const nextIsMax = formedMill ? isAI : !isAI;
                 const nextDepth = formedMill ? d : d - 1;
                 let score = minimax(nextDepth, -Infinity, Infinity, nextIsMax, ctx);
                 if (!isAI) score = -score;
                 E.undoMove();
-                const ownUndo = E.getOwn(), oppUndo = E.getOpp();
-
-                // 验证 undo 完整性
-                if (ownBefore !== ownUndo || oppBefore !== oppUndo) {
-                    console.error('[SEARCH BUG] undo mismatch! move=' + move +
-                        ' own:' + ownBefore + '→' + ownAfter + '→' + ownUndo +
-                        ' opp:' + oppBefore + '→' + oppAfter + '→' + oppUndo);
-                }
-
-                // 验证 move 编码与实际效果一致（所有类型）
-                const decFrom = move & 0x1F;
-                const decTo = (move >> 5) & 0x1F;
-                const decRemove = (move >> 10) & 0x1F;
-                const decType = (move >> 15) & 3;
-                const decPlayer = (move >> 17) & 1;
-                const moveBits = decPlayer ? ownBefore : oppBefore;
-                const oppBits = decPlayer ? oppBefore : ownBefore;
-
-                // 预期 own 变化
-                let expectedOwn = ownBefore;
-                if (decType === 0) { // place
-                    expectedOwn = decPlayer ? ((ownBefore | (1 << decTo)) >>> 0) : ownBefore;
-                } else if (decType === 1 || decType === 2) { // move/fly
-                    expectedOwn = decPlayer ? ((ownBefore ^ ((1 << decFrom) | (1 << decTo))) >>> 0) : ownBefore;
-                }
-                // 预期 opp 变化
-                let expectedOpp = oppBefore;
-                if (decType === 0) { // place
-                    expectedOpp = decPlayer ? oppBefore : ((oppBefore | (1 << decTo)) >>> 0);
-                } else if (decType === 1 || decType === 2) { // move/fly
-                    expectedOpp = decPlayer ? oppBefore : ((oppBefore ^ ((1 << decFrom) | (1 << decTo))) >>> 0);
-                }
-                // remove 效果（对对手的棋盘）
-                if (decRemove !== 31) {
-                    if (decPlayer) expectedOpp = (oppBefore & ~(1 << decRemove)) >>> 0;
-                    else expectedOwn = (ownBefore & ~(1 << decRemove)) >>> 0;
-                }
-
-                if (ownAfter !== expectedOwn || oppAfter !== expectedOpp) {
-                    const typeStr = ['place','move','fly','remove'][decType];
-                    console.error('[SEARCH BUG] move=' + move +
-                        ' ' + typeStr + ' ' + decFrom + '→' + decTo + ' x' + decRemove + ' p' + decPlayer +
-                        ' | own:' + ownBefore + '→' + ownAfter + '(exp:' + expectedOwn + ')' +
-                        ' | opp:' + oppBefore + '→' + oppAfter + '(exp:' + expectedOpp + ')');
-                }
 
                 if (timedOut) break;
                 results.push({ move, score });

@@ -343,36 +343,13 @@ const Game = (() => {
 
         await animateAndExecute(result.move);
 
-        // debug 信息（不受弹幕开关影响）
+        // debug 信息（仅性能指标）
         if (debugMode) {
-            const { depth, targetDepth, elapsed, nodeCount, topK, temperature } = result.stats;
-            const topN = result.allScores.slice(0, topK);
-            const debugText = topN.map((s) => {
-                const m = E.decodeMove(s.move);
-                const desc = m.type === 'place' ? `→${m.to}`
-                    : m.type === 'remove' ? `×${m.remove}`
-                    : m.type === 'fly' ? `${m.from}✈${m.to}`
-                    : `${m.from}→${m.to}`;
-                const eat = m.remove != null && m.type !== 'remove' ? `x${m.remove}` : '';
-                return `[${desc}${eat}|${s.score}]`;
-            }).join(' ');
-
-            // console 对比：搜索候选 vs AI 最终选择
-            const formatMove = (encoded) => {
-                const m = E.decodeMove(encoded);
-                const desc = m.type === 'place' ? `→${m.to}`
-                    : m.type === 'remove' ? `×${m.remove}`
-                    : m.type === 'fly' ? `${m.from}✈${m.to}`
-                    : `${m.from}→${m.to}`;
-                const eat = m.remove != null && m.type !== 'remove' ? ` x${m.remove}` : '';
-                return desc + eat;
-            };
-            console.log('[AI] ranked:', result.allScores.map(s => `[${formatMove(s.move)}|${s.score}]`).join(' '));
-            console.log('[AI] plays:', `[${formatMove(result.move)}]`);
+            const { depth, targetDepth, elapsed, nodeCount, temperature } = result.stats;
             const timeStr = elapsed >= 1000 ? `${Math.round(elapsed / 1000)}s` : `${Math.round(elapsed)}ms`;
             const nodesStr = nodeCount >= 1000000 ? `${(nodeCount / 1000000).toFixed(1)}M` : nodeCount >= 1000 ? `${Math.round(nodeCount / 1000)}k` : `${nodeCount}`;
             const tp = elapsed > 0 ? Math.round(nodeCount / elapsed) : 0;
-            showAILineRaw(`${debugText} < {D${depth}/${targetDepth} ${timeStr} ${nodesStr} ${tp}/ms T${temperature.toString().slice(0, 4)}}`);
+            showAILineRaw(`{D${depth}/${targetDepth} ${timeStr} ${nodesStr} ${tp}/ms T${temperature.toString().slice(0, 4)}}`);
         }
 
         // 走后弹幕
