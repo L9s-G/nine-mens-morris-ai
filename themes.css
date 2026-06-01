@@ -7,6 +7,8 @@
    2. 替换所有变量值即可创建新主题
    3. 主题通过 game.js 中的 THEMES 数组注册
    4. 可选：为主题添加专属 CSS 效果（参考末尾赛博 glow 示例）
+   5. 注意：--theme-dot-* 必须与 --theme-surface 有足够对比度，
+      否则状态面板的圆点将不可见（曾发生在荒原主题初版）
 
    ======================================================== */
 
@@ -240,7 +242,7 @@
 
     /* ── 状态圆点 ── */
     --theme-dot-white: #e8dfd4;
-    --theme-dot-black: #3a2a23;
+    --theme-dot-black: #4b3a32;
     --theme-dot-black-board: #5a4033;
     --theme-dot-lost: #6b5a4d;
 
@@ -274,18 +276,16 @@
 
 [data-theme="cyber"] .piece-white {
     filter:
-        drop-shadow(0 0 8px rgba(0, 255, 204, 0.5))
-        drop-shadow(2px 3px 4px rgba(0,0,0,0.7));
+        drop-shadow(0 0 8px rgba(0, 255, 204, 0.5)) drop-shadow(2px 3px 4px rgba(0, 0, 0, 0.7));
 }
 
 [data-theme="cyber"] .piece-black {
     filter:
-        drop-shadow(0 0 10px rgba(0, 229, 255, 0.6))
-        drop-shadow(2px 3px 4px rgba(0,0,0,0.7));
+        drop-shadow(0 0 10px rgba(0, 229, 255, 0.6)) drop-shadow(2px 3px 4px rgba(0, 0, 0, 0.7));
 }
 
 [data-theme="cyber"] .dot-white.hand {
-    box-shadow: 0 0 8px rgba(255,255,255,0.6);
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
 }
 
 [data-theme="cyber"] .dot-black.hand {
