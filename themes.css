@@ -78,64 +78,139 @@
 /* ==================== 马卡龙主题 ==================== */
 
 [data-theme="macaron"] {
-    /* ── 背景与面板：奶油白 ── */
-    --theme-bg: #f2f5f8;
+    /* ── 背景与面板：粉奶油 ── */
+    --theme-bg: #fff5f7;
     --theme-surface: #ffffff;
-    --theme-overlay: rgba(44, 62, 80, 0.3);
+    --theme-overlay: rgba(255, 179, 189, 0.25);
 
     /* ── 文字 ── */
-    --theme-text: #2c3e50;
-    --theme-text-secondary: #7f8c8d;
+    --theme-text: #5a4a4a;
+    --theme-text-secondary: #9c8f8f;
 
-    /* ── 强调色：轻熟粉 ── */
-    --theme-accent: #ff7597;
+    /* ── 强调色：草莓奶油粉 ── */
+    --theme-accent: #ffb3bd;
 
     /* ── 边框 ── */
-    --theme-border: #e9ecef;
-    --theme-border-strong: #dee2e6;
+    --theme-border: #a8ede0;
+    --theme-border-strong: #8cd8cc;
 
     /* ── 交互态 ── */
-    --theme-hover: rgba(255, 117, 151, 0.1);
-    --theme-active: rgba(255, 117, 151, 0.2);
+    --theme-hover: rgba(255, 179, 189, 0.12);
+    --theme-active: rgba(255, 179, 189, 0.22);
 
-    /* ── 棋盘：薄荷冰沙 ── */
-    --theme-board-face: #eaf7f4;
-    --theme-board-stroke: #bfe3db;
-    --theme-board-line: #8ccfcf;
-    --theme-board-hover: #d2f0ea;
-    --theme-board-highlight: #ffe3d1;
+    /* ── 棋盘：薄荷绿 + 奶油黄 ── */
+    --theme-board-face: #f7fff9;
+    --theme-board-stroke: #a8ede0;
+    --theme-board-line: #a8ede0;
+    --theme-board-hover: #ecfdf6;
+    --theme-board-highlight: #fff0f3;
 
-    /* ── 棋子：香草奶霜 vs 蓝莓慕斯 ── */
-    --theme-piece-white: #ffffff;
-    --theme-piece-white-stroke: #d0d7de;
-    --theme-piece-black: #5dade2;
-    --theme-piece-black-stroke: #3498db;
-    --theme-capture: #ff2a6d;
-    --theme-capture-glow: rgba(255, 42, 109, 0.4);
-    --theme-thinking: #ff7597;
+    /* ── 棋子：奶油黄 vs 草莓粉 ── */
+    --theme-piece-white: #ffe8a3;
+    --theme-piece-white-stroke: #f3d89a;
+
+    --theme-piece-black: #ffb3bd;
+    --theme-piece-black-stroke: #e28a96;
+
+    --theme-capture: #ff6f8f;
+    --theme-capture-glow: rgba(255, 111, 143, 0.45);
+    --theme-thinking: #ffb3bd;
 
     /* ── 状态圆点 ── */
-    --theme-dot-white: #d5d5d5;
-    --theme-dot-black: #5dade2;
-    --theme-dot-black-board: #3498db;
-    --theme-dot-lost: #bdc3c7;
+    --theme-dot-white: #ffe8a3;
+    --theme-dot-black: #ffb3bd;
+    --theme-dot-black-board: #e28a96;
+    --theme-dot-lost: #d8b8c4;
 
     /* ── 气泡与弹幕 ── */
-    --theme-bubble: #f4eff7;
-    --theme-danmaku: #6c5ce7;
+    --theme-bubble: #fff0f4;
+    --theme-danmaku: #ff6f8f;
 
-    /* ── 阴影：同色系微弱 ── */
-    --theme-shadow-piece: rgba(165, 175, 185, 0.2);
-    --theme-shadow-piece-dark: rgba(52, 152, 219, 0.25);
+    /* ── 阴影：柔粉系 ── */
+    --theme-shadow-piece: rgba(255, 179, 189, 0.25);
+    --theme-shadow-piece-dark: rgba(226, 138, 150, 0.35);
     --theme-highlight-bright: rgba(255, 255, 255, 1);
     --theme-highlight-soft: rgba(255, 255, 255, 0.6);
-    --theme-shadow-ambient: rgba(0, 0, 0, 0.04);
-    --theme-shadow-board: rgba(165, 175, 185, 0.15);
+    --theme-shadow-ambient: rgba(0, 0, 0, 0.05);
+    --theme-shadow-board: rgba(255, 179, 189, 0.15);
     --theme-shadow-danmaku: rgba(255, 255, 255, 0.9);
-    --theme-shadow-modal: rgba(44, 62, 80, 0.1);
+    --theme-shadow-modal: rgba(255, 179, 189, 0.15);
 
     /* ── 圆角 ── */
-    --theme-radius: 12px;
+    --theme-radius: 14px;
+}
+
+/* ==================== 多巴胺主题 ==================== */
+
+[data-theme="dopamine"] {
+    /* ── 背景：粉 → 蓝 → 青色渐变 ── */
+    --theme-bg: linear-gradient(
+        135deg,
+        #ffb3bd 0%,
+        #ffd6e1 20%,
+        #eaf2ff 50%,
+        #65a2ff 75%,
+        #056694 100%
+    );
+
+    --theme-surface: #ffffff;
+    --theme-overlay: rgba(255, 179, 189, 0.25);
+
+    /* ── 文字 ── */
+    --theme-text: #05445e;
+    --theme-text-secondary: #4f7a8a;
+
+    /* ── 强调色 ── */
+    --theme-accent: #ffb3bd;
+
+    /* ── 边框 ── */
+    --theme-border: #ffd6dd;
+    --theme-border-strong: #ffb3bd;
+
+    /* ── 交互态 ── */
+    --theme-hover: rgba(255, 179, 189, 0.12);
+    --theme-active: rgba(255, 179, 189, 0.22);
+
+    /* ── 棋盘：粉色 ── */
+    --theme-board-face: #ffe3eb;
+    --theme-board-stroke: #ffb3bd;
+    --theme-board-line: #ffb3bd;
+    --theme-board-hover: #ffd6e1;
+    --theme-board-highlight: #ffdce6;
+
+    /* ── 棋子：浅蓝 vs 青色 ── */
+    --theme-piece-white: #65a2ff;
+    --theme-piece-white-stroke: #4b82d6;
+
+    --theme-piece-black: #056694;
+    --theme-piece-black-stroke: #03485f;
+
+    --theme-capture: #ff6f8f;
+    --theme-capture-glow: rgba(255, 111, 143, 0.45);
+    --theme-thinking: #65a2ff;
+
+    /* ── 状态圆点 ── */
+    --theme-dot-white: #bcd3ff;
+    --theme-dot-black: #056694;
+    --theme-dot-black-board: #03485f;
+    --theme-dot-lost: #a8c4d1;
+
+    /* ── 气泡与弹幕 ── */
+    --theme-bubble: #ffe8ee;
+    --theme-danmaku: #056694;
+
+    /* ── 阴影 ── */
+    --theme-shadow-piece: rgba(255, 179, 189, 0.25);
+    --theme-shadow-piece-dark: rgba(101, 162, 255, 0.35);
+    --theme-highlight-bright: rgba(255, 255, 255, 1);
+    --theme-highlight-soft: rgba(255, 255, 255, 0.6);
+    --theme-shadow-ambient: rgba(0, 0, 0, 0.05);
+    --theme-shadow-board: rgba(255, 179, 189, 0.15);
+    --theme-shadow-danmaku: rgba(255, 255, 255, 0.9);
+    --theme-shadow-modal: rgba(255, 179, 189, 0.15);
+
+    /* ── 圆角 ── */
+    --theme-radius: 16px;
 }
 
 /* ==================== 赛博主题 ==================== */
@@ -416,4 +491,55 @@
 
 [data-theme="cyber"] .dot-black.hand {
     box-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
+}
+
+/* ==================== 多巴胺主题专属发光效果 ==================== */
+
+[data-theme="dopamine"] #board-lines {
+    filter: drop-shadow(0 0 6px rgba(255, 179, 189, 0.6));
+}
+
+[data-theme="dopamine"] .board-dot {
+    filter: drop-shadow(0 0 6px rgba(101, 162, 255, 0.6));
+}
+
+[data-theme="dopamine"] .piece-white {
+    filter:
+        drop-shadow(0 0 10px rgba(101, 162, 255, 0.55))
+        drop-shadow(2px 3px 4px rgba(0,0,0,0.25));
+}
+
+[data-theme="dopamine"] .piece-black {
+    filter:
+        drop-shadow(0 0 10px rgba(5, 102, 148, 0.55))
+        drop-shadow(2px 3px 4px rgba(0,0,0,0.25));
+}
+
+[data-theme="dopamine"] .dot-white.hand {
+    box-shadow: 0 0 8px rgba(101, 162, 255, 0.6);
+}
+
+[data-theme="dopamine"] .dot-black.hand {
+    box-shadow: 0 0 8px rgba(5, 102, 148, 0.6);
+}
+
+[data-theme="dopamine"] .piece-capture {
+    filter:
+        drop-shadow(0 0 12px rgba(255, 111, 143, 0.7))
+        drop-shadow(0 0 4px rgba(255, 111, 143, 0.5));
+}
+
+[data-theme="dopamine"] .thinking-indicator {
+    filter: drop-shadow(0 0 8px rgba(101, 162, 255, 0.7));
+}
+
+/* 可选：柔光模糊罩层（让背景更梦幻） */
+
+[data-theme="dopamine"]::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: inherit;
+    filter: blur(18px) brightness(1.1);
+    z-index: -1;
 }

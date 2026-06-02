@@ -671,6 +671,7 @@ const Game = (() => {
         { key: 'fogslate',  label: '雾灰石板' },
         { key: 'dawnwarm',  label: '晨光暖灰' },
         { key: 'macaron',   label: '马卡龙' },
+        { key: 'dopamine',  label: '多巴胺' },
         { key: 'cyber',     label: '霓虹幻影' },
         { key: 'default',   label: '暗夜深空' },
     ];
