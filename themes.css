@@ -9,6 +9,10 @@
    4. 可选：为主题添加专属 CSS 效果（参考末尾赛博 glow 示例）
    5. 注意：--theme-dot-* 必须与 --theme-surface 有足够对比度，
       否则状态面板的圆点将不可见（曾发生在荒原主题初版）
+   6. 深色主题注意：.highlight-move 和 .board-position:hover 使用的
+      inset-shadow 是固定黑色，在纯黑/深色背景上会不可见。
+      解决方案：确保 --theme-board-highlight/--theme-board-hover 与
+      --theme-board-face 有足够色差，或用外发光效果覆盖内阴影。
 
    ======================================================== */
 
@@ -492,6 +496,168 @@
 [data-theme="cyber"] .dot-black.hand {
     box-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
 }
+
+/* ==================== 银翼杀手主题 ==================== */
+
+[data-theme="blade-runner"] {
+    /* ── 背景：雨夜霓虹蓝紫 ── */
+    --theme-bg: radial-gradient(circle at 30% 20%, #0b0f1a 0%, #06070a 60%, #000000 100%);
+    --theme-surface: rgba(15, 20, 30, 0.85);
+    --theme-overlay: rgba(0, 0, 0, 0.7);
+
+    /* ── 文字：冷蓝白 ── */
+    --theme-text: #cfe8ff;
+    --theme-text-secondary: #7aa0c4;
+
+    /* ── 强调色：霓虹粉 ── */
+    --theme-accent: #ff2fa8;
+
+    /* ── 边框：金属蓝 ── */
+    --theme-border: #2a3b55;
+    --theme-border-strong: #1a2538;
+
+    /* ── 交互态 ── */
+    --theme-hover: rgba(102, 217, 255, 0.12);
+    --theme-active: rgba(102, 217, 255, 0.22);
+
+    /* ── 棋盘：银翼杀手蓝 ── */
+    --theme-board-face: #0d141c;
+    --theme-board-stroke: #1f2f44;
+    --theme-board-line: #66d9ff;
+    --theme-board-hover: #1a2330;
+    --theme-board-highlight: #1a2330;
+
+    /* ── 棋子：量子白 vs 霓虹蓝 ── */
+    --theme-piece-white: #ffffff;
+    --theme-piece-white-stroke: #66d9ff;
+
+    --theme-piece-black: #009dff;
+    --theme-piece-black-stroke: #006699;
+
+    --theme-capture: #ff2fa8;
+    --theme-capture-glow: rgba(255, 47, 168, 0.6);
+    --theme-thinking: #66d9ff;
+
+    /* ── 状态圆点 ── */
+    --theme-dot-white: #ffffff;
+    --theme-dot-black: #009dff;
+    --theme-dot-black-board: #006699;
+    --theme-dot-lost: #333b44;
+
+    /* ── 气泡与弹幕 ── */
+    --theme-bubble: #0f0a1a;
+    --theme-danmaku: #66d9ff;
+
+    /* ── 阴影：霓虹扩散光 ── */
+    --theme-shadow-piece: rgba(255, 255, 255, 0.4);
+    --theme-shadow-piece-dark: rgba(0, 157, 255, 0.5);
+    --theme-highlight-bright: rgba(255, 255, 255, 0.85);
+    --theme-highlight-soft: rgba(102, 217, 255, 0.4);
+    --theme-shadow-ambient: rgba(0, 0, 0, 0.6);
+    --theme-shadow-board: rgba(102, 217, 255, 0.2);
+    --theme-shadow-danmaku: rgba(0, 0, 0, 0.9);
+    --theme-shadow-modal: rgba(0, 0, 0, 0.85);
+
+    --theme-radius: 10px;
+}
+
+/* ── 银翼杀手专属发光效果 ── */
+
+[data-theme="blade-runner"] #board-lines {
+    filter: drop-shadow(0 0 6px rgba(102, 217, 255, 0.7));
+}
+
+[data-theme="blade-runner"] .piece-black {
+    filter:
+        drop-shadow(0 0 12px rgba(0, 157, 255, 0.7))
+        drop-shadow(2px 3px 4px rgba(0,0,0,0.8));
+}
+
+/* ==================== 黑客帝国主题 ==================== */
+
+[data-theme="matrix"] {
+    /* ── 背景：深黑矩阵 ── */
+    --theme-bg: #000000;
+    --theme-surface: #0a0a0a;
+    --theme-overlay: rgba(0, 0, 0, 0.8);
+
+    /* ── 文字：矩阵绿 ── */
+    --theme-text: #00ff88;
+    --theme-text-secondary: #00aa55;
+
+    /* ── 强调色：亮矩阵绿 ── */
+    --theme-accent: #00ff88;
+
+    /* ── 边框：暗绿 ── */
+    --theme-border: #003322;
+    --theme-border-strong: #002216;
+
+    /* ── 交互态 ── */
+    --theme-hover: rgba(0, 255, 136, 0.12);
+    --theme-active: rgba(0, 255, 136, 0.22);
+
+    /* ── 棋盘：数字雨风格 ── */
+    --theme-board-face: #0d0d0d;
+    --theme-board-stroke: #003322;
+    --theme-board-line: #00ff88;
+    --theme-board-hover: #111;
+    --theme-board-highlight: #111;
+
+    /* ── 棋子：亮绿 vs 深绿 ── */
+    --theme-piece-white: #00ff88;
+    --theme-piece-white-stroke: #00cc66;
+
+    --theme-piece-black: #006644;
+    --theme-piece-black-stroke: #003322;
+
+    --theme-capture: #00ffbb;
+    --theme-capture-glow: rgba(0, 255, 187, 0.6);
+    --theme-thinking: #00ff88;
+
+    /* ── 状态圆点 ── */
+    --theme-dot-white: #00ff88;
+    --theme-dot-black: #006644;
+    --theme-dot-black-board: #003322;
+    --theme-dot-lost: #224433;
+
+    /* ── 气泡与弹幕 ── */
+    --theme-bubble: #001a12;
+    --theme-danmaku: #00ff88;
+
+    /* ── 阴影：矩阵光 ── */
+    --theme-shadow-piece: rgba(0, 255, 136, 0.4);
+    --theme-shadow-piece-dark: rgba(0, 100, 68, 0.5);
+    --theme-highlight-bright: rgba(255, 255, 255, 0.8);
+    --theme-highlight-soft: rgba(0, 255, 136, 0.4);
+    --theme-shadow-ambient: rgba(0, 0, 0, 0.7);
+    --theme-shadow-board: rgba(0, 255, 136, 0.15);
+    --theme-shadow-danmaku: rgba(0, 0, 0, 0.9);
+    --theme-shadow-modal: rgba(0, 0, 0, 0.85);
+
+    --theme-radius: 8px;
+}
+
+/* ── 黑客帝国专属发光效果 ── */
+
+[data-theme="matrix"] #board-lines {
+    filter: drop-shadow(0 0 6px rgba(0, 255, 136, 0.7));
+}
+
+[data-theme="matrix"] .piece-white {
+    filter:
+        drop-shadow(0 0 12px rgba(0, 255, 136, 0.7))
+        drop-shadow(2px 3px 4px rgba(0,0,0,0.8));
+}
+
+[data-theme="matrix"] .highlight-move {
+    filter: drop-shadow(0 0 8px rgba(0, 255, 136, 0.8));
+}
+
+[data-theme="matrix"] .board-position:hover {
+    filter: drop-shadow(0 0 8px rgba(0, 255, 136, 0.6));
+}
+
+
 
 /* ==================== 多巴胺主题专属发光效果 ==================== */
 

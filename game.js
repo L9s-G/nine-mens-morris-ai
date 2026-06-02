@@ -656,7 +656,7 @@ const Game = (() => {
     // ==================== 初始化 ====================
 
     const DIFFICULTIES = [
-        { key: 'Eco',    label: '菜鸟' },
+        { key: 'Eco',    label: '杀手' },
         { key: 'Normal', label: '老手' },
         { key: 'Master', label: '大师' },
     ];
@@ -673,6 +673,8 @@ const Game = (() => {
         { key: 'macaron',   label: '马卡龙' },
         { key: 'dopamine',  label: '多巴胺' },
         { key: 'cyber',     label: '霓虹幻影' },
+        { key: 'blade-runner', label: '银翼杀手' },
+        { key: 'matrix',    label: '黑客帝国' },
         { key: 'default',   label: '暗夜深空' },
     ];
 
@@ -682,7 +684,7 @@ const Game = (() => {
     function loadSettings() {
         try {
             const saved = JSON.parse(localStorage.getItem('nmm-settings'));
-            if (saved && DIFFICULTIES.some(d => d.key === saved.difficulty) && FIRST_PLAYERS.some(f => f.key === saved.firstPlayer)) {
+            if (saved && DIFFICULTIES.some(d => d.key === saved.difficulty) && FIRST_PLAYERS.some(f => f.key === saved.firstPlayer) && THEMES.some(t => t.key === saved.theme)) {
                 settings = { ...DEFAULT_SETTINGS, ...saved };
             }
         } catch (e) {}
