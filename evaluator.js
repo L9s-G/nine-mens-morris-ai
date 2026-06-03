@@ -25,18 +25,6 @@ const Evaluator = (() => {
     // ==================== Mill 统计 ====================
 
     /**
-     * 检查 playerBits 在 pos 是否在已完成的 mill 中。
-     * 与 Engine.isInMillBits 相同逻辑，但 evaluator 内部复用避免跨模块调用。
-     */
-    function isInCompletedMillBits(playerBits, pos) {
-        const pms = POSITION_MILLS[pos];
-        for (let i = 0; i < pms.length; i++) {
-            if ((playerBits & MILL_MASKS[pms[i]]) === MILL_MASKS[pms[i]]) return true;
-        }
-        return false;
-    }
-
-    /**
      * 单次遍历 16 条 mill 线，同时产出双方 mill 威胁统计。
      *
      * 检测 4 级威胁（从弱到强）：
