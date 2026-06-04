@@ -468,6 +468,7 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    min-width: 240px;
 }
 
 .setting-label {
