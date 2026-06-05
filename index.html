@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
@@ -50,6 +50,8 @@
                 <g id="board-positions"></g>
                 <!-- 棋子层 -->
                 <g id="board-pieces"></g>
+                <!-- 上步痕迹层 -->
+                <g id="board-traces"></g>
                 <!-- Debug 层（位置编号） -->
                 <g id="board-debug"></g>
             </svg>
@@ -92,7 +94,7 @@
             <div class="modal-content settings-modal-content">
                 <div class="settings-header">
                     <h2>设置</h2>
-                    <span class="version-info">v3.2.2</span>
+                    <span class="version-info">v3.2.3</span>
                 </div>
                 <div class="settings-list">
                     <div class="setting-row">

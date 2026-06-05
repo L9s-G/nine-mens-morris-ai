@@ -38,7 +38,7 @@ const Game = (() => {
     const NS = 'http://www.w3.org/2000/svg';
     const DOT_RADIUS = 4;
 
-    let svgDots, svgPositions, svgPieces, svgHighlights, svgDebug;
+    let svgDots, svgPositions, svgPieces, svgHighlights, svgTraces, svgDebug;
 
     function createSvgElement(tag, attrs) {
         const el = document.createElementNS(NS, tag);
@@ -52,7 +52,8 @@ const Game = (() => {
         svgPositions = document.getElementById('board-positions'); // 点击热区（透明圆，捕获用户交互）
         svgPieces = document.getElementById('board-pieces');       // 棋子层（黑白棋子 + 选中态）
         svgHighlights = document.getElementById('board-highlights'); // 高亮层（可落点、吃子闪烁）
-        svgDebug = document.getElementById('board-debug');         // 调试层（位置编号、AI 思考信息）
+        svgTraces = document.getElementById('board-traces');         // 上步痕迹层
+        svgDebug = document.getElementById('board-debug');           // 调试层（位置编号、AI 思考信息）
 
         // 创建 24 个交点标记（黑色实心小圆点）
         for (let i = 0; i < BOARD_SIZE; i++) {
@@ -138,6 +139,36 @@ const Game = (() => {
                 class: 'highlight-move'
             });
             svgHighlights.appendChild(circle);
+        }
+    }
+
+    // ==================== 上步痕迹 ====================
+
+    function clearTraces() {
+        svgTraces.innerHTML = '';
+    }
+
+    function drawTraceCircle(pos, isSource, isCapture) {
+        const { x, y } = posToSvg(pos);
+        const circle = createSvgElement('circle', {
+            cx: x, cy: y,
+            r: 4,
+            class: isCapture ? 'highlight-trace-capture' : isSource ? 'highlight-trace-from' : 'highlight-trace'
+        });
+        svgTraces.appendChild(circle);
+    }
+
+    function renderTraces(move) {
+        if (!move) return;
+
+        if (move.type === 'remove') {
+            drawTraceCircle(move.remove, false, true);
+            return;
+        }
+
+        drawTraceCircle(move.to, false, false);
+        if (move.type !== 'place') {
+            drawTraceCircle(move.from, true, false);
         }
     }
 
@@ -243,6 +274,11 @@ const Game = (() => {
         // 解码整数 move 为对象（仅 UI 层需要属性访问）
         const move = E.decodeMove(encodedMove);
 
+        // capture 不清除旧痕迹（与成磨走法属于同一回合）
+        if (move.type !== 'remove') {
+            clearTraces();
+        }
+
         // 放置 / 走子 / 飞行：从起点滑动到终点
         if (move.type === 'place' || move.type === 'move' || move.type === 'fly') {
             const isWhite = move.player === E.TYPE_OPPONENT;
@@ -285,6 +321,7 @@ const Game = (() => {
         E.makeMove(encodedMove);
         resetSelection();
         renderBoard();
+        renderTraces(move);
     }
 
     /**
@@ -542,7 +579,7 @@ const Game = (() => {
             await navigator.clipboard.writeText(text);
             btn.textContent = 'Done';
         } catch {
-            btn.textContent = '复制失败';
+            btn.textContent = 'Copy failed';
         }
         setTimeout(() => { btn.textContent = 'LogCopy'; }, 1500);
     }
@@ -807,6 +844,7 @@ const Game = (() => {
     function resetUI() {
         applySettings();
         resetSelection();
+        clearTraces();
         document.getElementById('game-result-modal').classList.add('hidden');
         renderBoard();
         updateStatus();

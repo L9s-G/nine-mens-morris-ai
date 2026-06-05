@@ -77,7 +77,7 @@ button:active {
 
 #board-lines {
     stroke: var(--theme-board-line);
-    stroke-width: 3;
+    stroke-width: 2;
     fill: none;
 }
 
@@ -98,6 +98,36 @@ button:active {
     r: 14;
     pointer-events: none;
     filter: url(#inset-shadow);
+}
+
+/* 上步痕迹：起始位置 */
+.highlight-trace-from {
+    fill: var(--theme-board-face);
+    stroke: var(--theme-accent);
+    stroke-width: 2;
+    pointer-events: none;
+}
+
+/* 上步痕迹：落点位置 */
+.highlight-trace {
+    fill: var(--theme-board-face);
+    stroke: var(--theme-accent);
+    stroke-width: 2;
+    pointer-events: none;
+}
+
+/* 上步痕迹：被吃子位置 */
+.highlight-trace-capture {
+    fill: var(--theme-board-face);
+    stroke: var(--theme-accent);
+    stroke-width: 2;
+    pointer-events: none;
+    animation: trace-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes trace-pulse {
+    0%, 100% { stroke-opacity: 1; }
+    50%      { stroke-opacity: 0.25; }
 }
 
 /* ==================== Pieces ==================== */
