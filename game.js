@@ -622,7 +622,9 @@ const Game = (() => {
         copyBtn.onclick = copyRecord;
 
         // AI 台词
-        if (isPlayerWin) {
+        if (isDraw) {
+            showAILine('竟然平局了...');
+        } else if (isPlayerWin) {
             showAILine('不可能...我竟然输了...');
         } else {
             showAILine('认输吧，你已经没有机会了。');
