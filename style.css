@@ -25,6 +25,14 @@ html, body {
     user-select: none;
 }
 
+button {
+    transition: transform 0.08s ease-out;
+}
+
+button:active {
+    transform: scale(0.90);
+}
+
 /* ==================== Layout ==================== */
 
 #app {

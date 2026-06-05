@@ -148,13 +148,14 @@ const Game = (() => {
     let currentLegalPlayer = null;
     let playerMoves = [];     // 当前玩家的合法走法（解码后的对象数组）
     let isAIThinking = false;
+    let isProcessing = false;
     let debugMode = false;    // Debug 模式开关
 
     // ==================== 交互逻辑 ====================
 
     /** 主点击处理：根据游戏状态分派到放置/吃子/走子处理器。 */
     function onPositionClick(pos) {
-        if (isAIThinking) return;
+        if (isProcessing || isAIThinking) return;
         if (E.getStateView().currentPlayer !== E.TYPE_OPPONENT) return;
         if (E.isGameOver()) return;
 
@@ -291,34 +292,39 @@ const Game = (() => {
      * @param {object} move - decodeMove 解码后的走法对象
      */
     async function executePlayerMove(move) {
-        // move 是 decoded 对象，需要重新编码为整数传给 animateAndExecute
-        await animateAndExecute(E.encodeMove(move.player, E.TYPE_ENCODE[move.type], move.from, move.to, move.remove));
-        resetSelection();
-        updateStatus();
+        isProcessing = true;
+        try {
+            // move 是 decoded 对象，需要重新编码为整数传给 animateAndExecute
+            await animateAndExecute(E.encodeMove(move.player, E.TYPE_ENCODE[move.type], move.from, move.to, move.remove));
+            resetSelection();
+            updateStatus();
 
-        // 检查游戏是否结束
-        if (E.isGameOver()) {
-            showGameResult();
-            return;
-        }
-
-        // 如果成行需要吃子，等待玩家操作（engine 已切换到 millMove）
-        if (E.getStateView().millMove && E.getStateView().currentPlayer === E.TYPE_OPPONENT) {
-            playerMoves = E.generateLegalMoves(E.TYPE_OPPONENT).map(E.decodeMove);
-            if (playerMoves.length === 0) {
+            // 检查游戏是否结束
+            if (E.isGameOver()) {
                 showGameResult();
                 return;
             }
-            setMessage('选择对手棋子吃掉');
-            legalTargets = playerMoves.filter(m => m.type === 'remove').map(m => m.remove);
-            currentLegalPlayer = E.TYPE_OPPONENT;
-            renderBoard();
-            saveGameFen();
-            return;
-        }
 
-        // AI 回合
-        await doAITurn();
+            // 如果成行需要吃子，等待玩家操作（engine 已切换到 millMove）
+            if (E.getStateView().millMove && E.getStateView().currentPlayer === E.TYPE_OPPONENT) {
+                playerMoves = E.generateLegalMoves(E.TYPE_OPPONENT).map(E.decodeMove);
+                if (playerMoves.length === 0) {
+                    showGameResult();
+                    return;
+                }
+                setMessage('选择对手棋子吃掉');
+                legalTargets = playerMoves.filter(m => m.type === 'remove').map(m => m.remove);
+                currentLegalPlayer = E.TYPE_OPPONENT;
+                renderBoard();
+                saveGameFen();
+                return;
+            }
+
+            // AI 回合
+            await doAITurn();
+        } finally {
+            isProcessing = false;
+        }
     }
 
     /**
