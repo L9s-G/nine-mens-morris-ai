@@ -7,11 +7,11 @@
 importScripts('engine.js', 'evaluator.js', 'searcher.js');
 
 self.onmessage = function (e) {
-    const { fen, player, depth, timeLimit } = e.data;
+    const { fen, player, depth, timeLimit, debug } = e.data;
 
     try {
         Engine.fromFen(fen);
-        const result = Searcher.search(player, depth, timeLimit);
+        const result = Searcher.search(player, depth, timeLimit, debug);
         self.postMessage({ success: true, result });
     } catch (error) {
         self.postMessage({ success: false, error: error.message });

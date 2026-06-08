@@ -70,7 +70,7 @@ const AI = (() => {
             pendingReject = reject;
 
             const fen = E.toFen();
-            worker.postMessage({ fen, player, depth, timeLimit });
+            worker.postMessage({ fen, player, depth, timeLimit, debug: debugMode });
         });
     }
 

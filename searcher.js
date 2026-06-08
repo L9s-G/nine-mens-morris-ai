@@ -107,7 +107,7 @@ const Searcher = (() => {
      * @param {number} [timeLimitMs] - 时间墙（默认 5000ms）
      * @returns {{ ranked: Array<{move, score}>, stats: object }}
      */
-    function search(player, maxDepth, timeLimitMs) {
+    function search(player, maxDepth, timeLimitMs, debug) {
         timeLimit = timeLimitMs || DEFAULT_TIME_LIMIT;
         nodeCount = 0;
         timedOut = false;
@@ -160,7 +160,7 @@ const Searcher = (() => {
                     }
                     j = k;
                 }
-                debugPrintDepth(d, maxDepth, results);
+                if (debug) debugPrintDepth(d, maxDepth, results);
 
                 bestScores = results;
 
