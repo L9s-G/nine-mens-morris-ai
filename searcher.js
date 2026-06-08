@@ -19,7 +19,6 @@ const Searcher = (() => {
     // ==================== Debug 工具 ====================
 
     function debugPrintDepth(depth, maxDepth, results) {
-        console.log(`\n[Depth ${depth}/${maxDepth}]`);
         const lines = [];
         for (let r = 0; r < results.length; r++) {
             const dec = E.decodeMove(results[r].move);
@@ -27,7 +26,7 @@ const Searcher = (() => {
             const removeStr = dec.remove !== null ? `x${dec.remove}` : '';
             lines.push(`[${fromStr}${removeStr}:${results[r].score}]`);
         }
-        console.log(lines.join(' | '));
+        console.log(`[Depth ${depth}/${maxDepth}]: ${lines.join(' ')}`);
     }
 
     // ==================== Minimax + Alpha-Beta ====================

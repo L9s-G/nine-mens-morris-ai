@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
@@ -10,6 +11,7 @@
     <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
     <div id="app">
         <!-- 中间区域：棋盘 + 弹幕 -->
@@ -18,29 +20,29 @@
                 <defs>
                     <!-- 交互层凹陷内阴影 -->
                     <filter id="inset-shadow">
-                        <feOffset dx="3" dy="3" in="SourceAlpha" result="offset"/>
-                        <feGaussianBlur stdDeviation="3" in="offset" result="offset-blur"/>
-                        <feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse"/>
-                        <feFlood flood-color="#000" flood-opacity="0.6" result="color"/>
-                        <feComposite operator="in" in="color" in2="inverse" result="shadow"/>
-                        <feComposite operator="over" in="shadow" in2="SourceGraphic"/>
+                        <feOffset dx="3" dy="3" in="SourceAlpha" result="offset" />
+                        <feGaussianBlur stdDeviation="3" in="offset" result="offset-blur" />
+                        <feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse" />
+                        <feFlood flood-color="#000" flood-opacity="0.6" result="color" />
+                        <feComposite operator="in" in="color" in2="inverse" result="shadow" />
+                        <feComposite operator="over" in="shadow" in2="SourceGraphic" />
                     </filter>
                 </defs>
                 <!-- 棋盘面 -->
-                <rect id="board-face" x="10" y="10" width="580" height="580" rx="6"/>
+                <rect id="board-face" x="10" y="10" width="580" height="580" rx="6" />
                 <!-- 棋盘线 -->
                 <g id="board-lines">
                     <!-- 外方 (grid 0,0 → 6,6) -->
-                    <rect x="50" y="50" width="500" height="500" rx="4"/>
+                    <rect x="50" y="50" width="500" height="500" rx="4" />
                     <!-- 中方 (grid 1,1 → 5,5) -->
-                    <rect x="133.33" y="133.33" width="333.33" height="333.33" rx="3"/>
+                    <rect x="133.33" y="133.33" width="333.33" height="333.33" rx="3" />
                     <!-- 内方 (grid 2,2 → 4,4) -->
-                    <rect x="216.67" y="216.67" width="166.67" height="166.67" rx="2"/>
+                    <rect x="216.67" y="216.67" width="166.67" height="166.67" rx="2" />
                     <!-- 连接线 -->
-                    <line x1="50" y1="300" x2="216.67" y2="300"/>
-                    <line x1="383.33" y1="300" x2="550" y2="300"/>
-                    <line x1="300" y1="50" x2="300" y2="216.67"/>
-                    <line x1="300" y1="383.33" x2="300" y2="550"/>
+                    <line x1="50" y1="300" x2="216.67" y2="300" />
+                    <line x1="383.33" y1="300" x2="550" y2="300" />
+                    <line x1="300" y1="50" x2="300" y2="216.67" />
+                    <line x1="300" y1="383.33" x2="300" y2="550" />
                 </g>
                 <!-- 交点标记（黑色小圆点） -->
                 <g id="board-dots"></g>
@@ -94,7 +96,7 @@
             <div class="modal-content settings-modal-content">
                 <div class="settings-header">
                     <h2>设置</h2>
-                    <span class="version-info">v3.3</span>
+                    <span class="version-info">v3.3.1</span>
                 </div>
                 <div class="settings-list">
                     <div class="setting-row">
@@ -146,4 +148,5 @@
         }
     </script>
 </body>
+
 </html>
