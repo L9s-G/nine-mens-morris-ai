@@ -1,4 +1,4 @@
-const CACHE_NAME = '9mm-v3.2.4';
+const CACHE_NAME = '9mm-v3.3';
 const ASSETS = [
     './',
     './index.html',
