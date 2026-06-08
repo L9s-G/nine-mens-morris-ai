@@ -16,6 +16,20 @@ const Searcher = (() => {
     let timeLimit = DEFAULT_TIME_LIMIT;
     let timedOut = false;
 
+    // ==================== Debug 工具 ====================
+
+    function debugPrintDepth(depth, maxDepth, results) {
+        console.log(`\n[Depth ${depth}/${maxDepth}]`);
+        const lines = [];
+        for (let r = 0; r < results.length; r++) {
+            const dec = E.decodeMove(results[r].move);
+            const fromStr = dec.from === 31 ? `→${dec.to}` : `${dec.from}→${dec.to}`;
+            const removeStr = dec.remove !== null ? `x${dec.remove}` : '';
+            lines.push(`[${fromStr}${removeStr}:${results[r].score}]`);
+        }
+        console.log(lines.join(' | '));
+    }
+
     // ==================== Minimax + Alpha-Beta ====================
 
     /**
@@ -137,7 +151,7 @@ const Searcher = (() => {
                 results.sort((a, b) => b.score - a.score);
                 // 同分段内 Fisher-Yates 打乱：对称局面中多个走法分数相同，
                 // 打乱避免 AI 每次走同一个位置，增加对局多样性
-                for (let j = 0; j < results.length; ) {
+                for (let j = 0; j < results.length;) {
                     let k = j + 1;
                     while (k < results.length && results[k].score === results[j].score) k++;
                     for (let m = k - 1; m > j; m--) {
@@ -146,7 +160,12 @@ const Searcher = (() => {
                     }
                     j = k;
                 }
+                debugPrintDepth(d, maxDepth, results);
+
                 bestScores = results;
+
+                // 已找到必胜走法，无需继续加深
+                if (bestScores.length > 0 && bestScores[0].score >= EV.SCORE_WIN) break;
             } else {
                 break;
             }

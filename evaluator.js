@@ -203,7 +203,13 @@ const Evaluator = (() => {
 
         // ── 机动性 ──
         mobility: 150,          // 半衰递减：weight × 0.5^(mob-1)
+
+        // ── 子数威胁 ──
+        threat_constant: 40,     // 对手机子数威胁系数
     };
+
+    // 棋力差价值，AI 子数越少对手威胁越大，体现吃子走法与非吃子走法的差异
+    const PIECES_FACTOR = [0, 1, 2, 4.00, 3.75, 2.50, 1.50, 0.75, 0.50, 0.25];
 
     // 机动性半衰表：HALF_DECAY[n] = 0.5^(n-1)，n=0..16
     // 避免每次 evaluate 调用 Math.pow
@@ -239,33 +245,43 @@ const Evaluator = (() => {
         const state = E.getStateView();
         let score = 0;
 
+        // ── 缓存常用值（避免重复属性查找 + 重复计算）──
+        const aiPieces = state.playerAI.piecesOnBoard + state.playerAI.piecesOnHand;
+        const oppPieces = state.playerOpponent.piecesOnBoard + state.playerOpponent.piecesOnHand;
+
         // ── 吃子价值 ──
         // ctx.move 是编码整数：remove 字段在 bit 10-14，MOVE_NONE=31 表示无吃子
         if (ctx && ctx.move != null && ((ctx.move >> 10) & 0x1F) !== E.MOVE_NONE) {
             const mover = ctx.player;
             const opp = mover === E.TYPE_AI ? E.TYPE_OPPONENT : E.TYPE_AI;
             const oppData = opp === E.TYPE_AI ? state.playerAI : state.playerOpponent;
-            const oppPieces = oppData.piecesOnBoard + oppData.piecesOnHand;
             const sign = mover === E.TYPE_AI ? 1 : -1;
 
             if (oppPieces >= 4) score += sign * WEIGHTS.capture_ge4 * w;
         }
 
-        // ── Mill 威胁（差值比较：(ai>opp) - (ai<opp) = +1/0/-1 三态 signum）──
+        // ── 对手子数威胁，AI子越少对手威胁越大，同层比较时体现吃子走法与非吃子走法的差异 ──
+        score -= PIECES_FACTOR[aiPieces] * oppPieces * WEIGHTS.threat_constant * w;
+
+        // ── Mill 威胁 ──
         const { ai: aiMills, opp: oppMills, empty } = analyzeMillsBoth(aiPhase, oppPhase);
 
-        const sign = (a, b) => (a > b) - (a < b);  // signum：+1/0/-1
-        score += WEIGHTS.nearMill * w * sign(aiMills.nearMills, oppMills.nearMills);
-        score += WEIGHTS.hardNearMill * w * sign(aiMills.hardNearMills, oppMills.hardNearMills);
-        score += WEIGHTS.rollingFork * w * sign(aiMills.rollingForks, oppMills.rollingForks);
-        score += WEIGHTS.hardRollingFork * w * sign(aiMills.hardRollingForks, oppMills.hardRollingForks);
+        score += WEIGHTS.nearMill * w * aiMills.nearMills;
+        score += WEIGHTS.hardNearMill * w * aiMills.hardNearMills;
+        score += WEIGHTS.rollingFork * w * aiMills.rollingForks;
+        score += WEIGHTS.hardRollingFork * w * aiMills.hardRollingForks;
+
+        score -= WEIGHTS.nearMill * w * oppMills.nearMills;
+        score -= WEIGHTS.hardNearMill * w * oppMills.hardNearMills;
+        score -= WEIGHTS.rollingFork * w * oppMills.rollingForks;
+        score -= WEIGHTS.hardRollingFork * w * oppMills.hardRollingForks;
+
 
         // ── 飞行转折期吃子策略 ──
         // 对手即将进入飞行阶段（3-4 子）时，AI 有多个 nearMill 可以连续吃子，
         // 在对手获得飞行能力前将其消灭
-        const oppTotal = state.playerOpponent.piecesOnBoard + state.playerOpponent.piecesOnHand;
-        if (oppTotal === 3 && aiMills.nearMills >= 2) score += WEIGHTS.capture_fly * w;
-        if (oppTotal === 4 && aiMills.nearMills >= 3) score += WEIGHTS.capture_fly * w;
+        if (oppPieces === 3 && aiMills.nearMills >= 2) score += WEIGHTS.capture_fly * w;
+        if (oppPieces === 4 && aiMills.nearMills >= 3) score += WEIGHTS.capture_fly * w;
 
         // ── 机动性：MOVING 阶段可用空位数 ──
         // 对手机动性高 → 加分（对手选择多）；AI 机动性高 → 减分（AI 选择多）
